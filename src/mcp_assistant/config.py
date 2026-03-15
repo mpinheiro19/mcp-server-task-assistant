@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-CODES_ROOT = Path(os.getenv("ASSISTANT_FLOW_ROOT", "/home/mpinheiro19/Codes"))
+CODES_ROOT = Path(os.getenv("ASSISTANT_FLOW_ROOT", Path.home() / "Codes"))
 COPILOT_ROOT = CODES_ROOT / "copilot-assistants"
 PRDS_DIR = COPILOT_ROOT / "prds"
 SPECS_DIR = COPILOT_ROOT / "specs"
