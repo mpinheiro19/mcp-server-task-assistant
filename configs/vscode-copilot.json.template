@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "assistant-flow": {
+      "command": "uv",
+      "args": ["run", "--directory", "${MCP_ASSISTANT_DIR}", "mcp-assistant"],
+      "env": {
+        "ASSISTANT_FLOW_ROOT": "${ASSISTANT_FLOW_ROOT}"
+      }
+    }
+  }
+}
