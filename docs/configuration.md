@@ -1,12 +1,32 @@
 # Configuration
 
+## Quick Start
+
+Clone the repo, then run:
+
+```bash
+bash scripts/setup.sh
+```
+
+This auto-detects the repo root and generates all client configs in `configs/`. Override
+the defaults by setting env vars before running:
+
+```bash
+MCP_ASSISTANT_DIR=/path/to/mcp-assistant \
+ASSISTANT_FLOW_ROOT=/path/to/Codes \
+bash scripts/setup.sh
+```
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `ASSISTANT_FLOW_ROOT` | `/home/mpinheiro19/Codes` | Root directory that contains `copilot-assistants/`. Override to run on a different machine or path. |
+| `MCP_ASSISTANT_DIR` | Git repo root (auto-detected) | Absolute path to the `mcp-assistant` project root. |
+| `ASSISTANT_FLOW_ROOT` | `~/Codes` | Root directory that contains `copilot-assistants/`. |
 
-All path constants in `config.py` derive from this root:
+All path constants in `config.py` derive from `ASSISTANT_FLOW_ROOT`:
 
 ```python
 COPILOT_ROOT = CODES_ROOT / "copilot-assistants"
@@ -16,11 +36,16 @@ PLANS_DIR    = COPILOT_ROOT / "plans"
 INDEX_FILE   = COPILOT_ROOT / "index.md"
 ```
 
+See [`.env.example`](../.env.example) for a reference of all configurable variables.
+
 ---
 
 ## Client Configuration
 
-Pre-built configuration snippets are available in `configs/`. Merge the relevant file into your client's settings.
+Config files in `configs/` are **generated** by `scripts/setup.sh` from `*.json.template`
+sources. Edit the templates, not the JSON files.
+
+Merge the generated file into your client's settings after running setup.
 
 ### Claude Code
 
@@ -40,7 +65,7 @@ Target file: `~/.claude/settings.json`
 }
 ```
 
-See [`../configs/claude-code.json`](../configs/claude-code.json) for a copy-pasteable snippet with the default paths.
+See [`../configs/claude-code.json`](../configs/claude-code.json) for the generated snippet.
 
 ### Cursor
 
