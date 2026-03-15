@@ -15,8 +15,14 @@ def register(mcp) -> None:
     def prd_from_idea(idea: str) -> list[Message]:
         """Gera prompt para criar PRD a partir de uma ideia, injetando protocolo e estado do index."""
         protocol = COPILOT_INSTRUCTIONS.read_text() if COPILOT_INSTRUCTIONS.exists() else ""
-        index_content = INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md ainda não existe."
-        prd_prompt_template = (SPEC_ASSISTANT_DIR / "prd-prompt.md").read_text() if (SPEC_ASSISTANT_DIR / "prd-prompt.md").exists() else ""
+        index_content = (
+            INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md ainda não existe."
+        )
+        prd_prompt_template = (
+            (SPEC_ASSISTANT_DIR / "prd-prompt.md").read_text()
+            if (SPEC_ASSISTANT_DIR / "prd-prompt.md").exists()
+            else ""
+        )
 
         system_content = f"{prd_prompt_template}\n\n---\n\n# PROTOCOLO DE GOVERNANÇA\n{protocol}"
         user_content = (
@@ -37,7 +43,11 @@ def register(mcp) -> None:
             raise ValueError(f"PRD '{prd_filename}' não encontrado.")
 
         prd_content = prd_path.read_text()
-        tech_spec_template = (SPEC_ASSISTANT_DIR / "tech-spec-prompt.md").read_text() if (SPEC_ASSISTANT_DIR / "tech-spec-prompt.md").exists() else ""
+        tech_spec_template = (
+            (SPEC_ASSISTANT_DIR / "tech-spec-prompt.md").read_text()
+            if (SPEC_ASSISTANT_DIR / "tech-spec-prompt.md").exists()
+            else ""
+        )
 
         user_content = (
             f"{tech_spec_template}\n\n"

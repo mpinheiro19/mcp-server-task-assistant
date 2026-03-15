@@ -1,8 +1,8 @@
 from fastmcp import FastMCP
 
-from mcp_assistant.tools import artifacts, workflow
-from mcp_assistant.resources import flow
 from mcp_assistant.prompts import templates
+from mcp_assistant.resources import flow
+from mcp_assistant.tools import artifacts, workflow
 
 mcp = FastMCP(
     name="AssistantFlowServer",

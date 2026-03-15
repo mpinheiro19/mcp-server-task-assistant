@@ -1,6 +1,6 @@
 import re
 
-from mcp_assistant.config import PRDS_DIR, SPECS_DIR, PLANS_DIR
+from mcp_assistant.config import PLANS_DIR, PRDS_DIR, SPECS_DIR
 from mcp_assistant.utils import _slugify
 
 
@@ -16,7 +16,9 @@ def register(mcp) -> None:
         path = PRDS_DIR / filename
 
         if path.exists():
-            raise ValueError(f"PRD '{filename}' já existe. Use um nome diferente ou incremente a versão.")
+            raise ValueError(
+                f"PRD '{filename}' já existe. Use um nome diferente ou incremente a versão."
+            )
 
         PRDS_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
@@ -34,7 +36,9 @@ def register(mcp) -> None:
         path = SPECS_DIR / filename
 
         if path.exists():
-            raise ValueError(f"Spec '{filename}' já existe. Use um nome diferente ou incremente a versão.")
+            raise ValueError(
+                f"Spec '{filename}' já existe. Use um nome diferente ou incremente a versão."
+            )
 
         SPECS_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
@@ -51,7 +55,9 @@ def register(mcp) -> None:
         path = PLANS_DIR / filename
 
         if path.exists():
-            raise ValueError(f"Plan '{filename}' já existe. Use um nome diferente ou incremente a versão.")
+            raise ValueError(
+                f"Plan '{filename}' já existe. Use um nome diferente ou incremente a versão."
+            )
 
         PLANS_DIR.mkdir(parents=True, exist_ok=True)
         path.write_text(content)

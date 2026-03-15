@@ -1,9 +1,8 @@
-import pytest
 from unittest.mock import patch
-from pathlib import Path
+
+import pytest
 
 import mcp_assistant.tools.workflow as workflow_module
-import mcp_assistant.config as config_module
 from mcp_assistant.utils import _parse_index_table
 
 INDEX_CONTENT = """\
@@ -22,6 +21,7 @@ class CaptureMCP:
         def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn
+
         return decorator
 
 

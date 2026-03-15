@@ -1,8 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
-from mcp_assistant.config import INDEX_FILE, PRDS_DIR, SPECS_DIR, PLANS_DIR
-from mcp_assistant.utils import _slugify, _parse_index_table
+from mcp_assistant.config import INDEX_FILE, PLANS_DIR, PRDS_DIR, SPECS_DIR
+from mcp_assistant.utils import _parse_index_table, _slugify
 
 
 def register(mcp) -> None:
@@ -18,7 +18,9 @@ def register(mcp) -> None:
         text = INDEX_FILE.read_text()
         features = _parse_index_table(text)
 
-        done = sum(1 for f in features if "✅" in f["implementation"] or "Concluído" in f["implementation"])
+        done = sum(
+            1 for f in features if "✅" in f["implementation"] or "Concluído" in f["implementation"]
+        )
         in_progress = sum(1 for f in features if "🔄" in f["implementation"])
         todo = sum(1 for f in features if "❌" in f["implementation"])
 
@@ -54,7 +56,12 @@ def register(mcp) -> None:
 
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith("|") and prd_filename in stripped and not stripped.startswith("| PRD") and not stripped.startswith("| :"):
+            if (
+                stripped.startswith("|")
+                and prd_filename in stripped
+                and not stripped.startswith("| PRD")
+                and not stripped.startswith("| :")
+            ):
                 new_lines.append(new_row + "\n")
                 updated = True
             else:
@@ -85,7 +92,9 @@ def register(mcp) -> None:
         if plan_status not in valid_plan:
             raise ValueError(f"plan_status inválido: '{plan_status}'. Válidos: {valid_plan}")
         if implementation_status not in valid_impl:
-            raise ValueError(f"implementation_status inválido: '{implementation_status}'. Válidos: {valid_impl}")
+            raise ValueError(
+                f"implementation_status inválido: '{implementation_status}'. Válidos: {valid_impl}"
+            )
 
         if not INDEX_FILE.exists():
             raise FileNotFoundError("index.md não encontrado.")
@@ -171,11 +180,13 @@ def register(mcp) -> None:
             result = []
             for f in sorted(directory.glob("*.md")):
                 stat = f.stat()
-                result.append({
-                    "filename": f.name,
-                    "size_bytes": stat.st_size,
-                    "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                })
+                result.append(
+                    {
+                        "filename": f.name,
+                        "size_bytes": stat.st_size,
+                        "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
             return result
 
         if artefact_type == "all":

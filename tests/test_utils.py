@@ -1,4 +1,4 @@
-from mcp_assistant.utils import _slugify, _parse_index_table
+from mcp_assistant.utils import _parse_index_table, _slugify
 
 
 def test_slugify_basic():

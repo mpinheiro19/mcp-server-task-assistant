@@ -1,9 +1,9 @@
-import pytest
 from unittest.mock import patch
-from pathlib import Path
 
-import mcp_assistant.tools.artifacts as artifacts_module
+import pytest
+
 import mcp_assistant.config as config_module
+import mcp_assistant.tools.artifacts as artifacts_module
 
 
 @pytest.fixture()
@@ -27,6 +27,7 @@ def fake_dirs(tmp_path):
 
 class CaptureMCP:
     """Minimal mock that captures registered tools."""
+
     def __init__(self):
         self.tools = {}
 
@@ -34,6 +35,7 @@ class CaptureMCP:
         def decorator(fn):
             self.tools[fn.__name__] = fn
             return fn
+
         return decorator
 
 

@@ -21,11 +21,13 @@ def _parse_index_table(text: str) -> list[dict]:
         cols = [c.strip() for c in line.strip("|").split("|")]
         if len(cols) < 5:
             continue
-        features.append({
-            "prd": cols[0],
-            "spec": cols[1],
-            "feature": cols[2],
-            "plan_status": cols[3],
-            "implementation": cols[4],
-        })
+        features.append(
+            {
+                "prd": cols[0],
+                "spec": cols[1],
+                "feature": cols[2],
+                "plan_status": cols[3],
+                "implementation": cols[4],
+            }
+        )
     return features
