@@ -1,4 +1,7 @@
-# mcp-assistant
+# MCP - Development Lifecycle Manager
+
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 
 MCP server that manages the **PRD → Spec → Plan** artifact lifecycle for software projects.
 Exposes tools, resources, and prompt templates consumed by Claude Code, Cursor, and VS Code Copilot via STDIO transport.
@@ -12,13 +15,21 @@ uv run mcp-assistant
 
 The server starts in STDIO mode. Configure your client to spawn it — see [Configuration](docs/configuration.md).
 
+## Features
+
+- 📝 Artifact lifecycle: PRD → Spec → Plan
+- 🛠️ Exposes tools and prompt templates for LLM-based assistants
+- 📂 Read-only resource URIs for filesystem state
+- ⚡ Fast, stateless STDIO server
+- 🧩 Integrates with Claude Code, Cursor, and VS Code Copilot
+
 ## What It Does
 
-| Capability | Description |
-| :--- | :--- |
-| **Tools** | Create PRDs, Specs, and Plans; manage `index.md` status; inspect for duplicates |
-| **Resources** | Read-only `flow://*` URIs exposing filesystem state |
-| **Prompts** | Context-rich LLM prompt templates for authoring and reviewing artifacts |
+| Capability   | Description                                                                 |
+| :---        | :---                                                                       |
+| **Tools**   | Create PRDs, Specs, and Plans; manage `index.md` status; inspect for duplicates |
+| **Resources** | Read-only `flow://*` URIs exposing filesystem state                        |
+| **Prompts** | Context-rich LLM prompt templates for authoring and reviewing artifacts     |
 
 ## Documentation
 
@@ -38,6 +49,21 @@ The server starts in STDIO mode. Configure your client to spawn it — see [Conf
 - [uv](https://docs.astral.sh/uv/)
 - `fastmcp >= 3.1.1`
 
+## Example Usage
+
+```bash
+# Example: Starting the server (see Quick Start)
+uv run mcp-assistant
+```
+
+## Contributing
+
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before opening issues or pull requests.
+
+## Support
+
+For questions, suggestions, or support, open an issue or start a discussion on GitHub.
+
 ## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
