@@ -119,3 +119,94 @@ def test_check_duplicate_finds_match(tmp_path):
         result = mcp.tools["check_duplicate"]("Nova Feature")
     assert result["has_duplicate"] is True
     assert any("prd-nova-feature.md" in m for m in result["matches"])
+
+
+# --- update_index ---
+
+
+def test_update_index_creates_index_when_missing(mcp_with_tools):
+    mcp, index_file = mcp_with_tools
+    index_file.unlink()
+    content = mcp.tools["update_index"](
+        "prd-new.md", "spec-new.md", "New Feature", "🟡 Pending", "❌ Todo"
+    )
+    assert "prd-new.md" in content
+    assert "New Feature" in content
+    assert index_file.exists()
+
+
+def test_update_index_appends_new_row(mcp_with_tools):
+    mcp, index_file = mcp_with_tools
+    mcp.tools["update_index"]("prd-baz.md", "spec-baz.md", "Baz Feature", "🟢 Done", "✅ Concluído")
+    rows = _parse_index_table(index_file.read_text())
+    assert any(r["prd"] == "prd-baz.md" for r in rows)
+
+
+def test_update_index_replaces_existing_row(mcp_with_tools):
+    mcp, index_file = mcp_with_tools
+    mcp.tools["update_index"](
+        "prd-foo.md", "spec-foo.md", "Foo Feature", "🟡 Pending", "🔄 In Progress"
+    )
+    rows = _parse_index_table(index_file.read_text())
+    foo = next(r for r in rows if r["prd"] == "prd-foo.md")
+    assert foo["plan_status"] == "🟡 Pending"
+    assert foo["implementation"] == "🔄 In Progress"
+
+
+# --- list_artefacts ---
+
+
+@pytest.fixture()
+def mcp_with_artefacts(tmp_path):
+    mcp = CaptureMCP()
+    prds = tmp_path / "prds"
+    specs = tmp_path / "specs"
+    plans = tmp_path / "plans"
+    prds.mkdir()
+    specs.mkdir()
+    plans.mkdir()
+    (prds / "prd-alpha.md").write_text("# PRD Alpha")
+    (specs / "spec-alpha.md").write_text("# Spec Alpha")
+    (plans / "plan-alpha.md").write_text("# Plan Alpha")
+    index = tmp_path / "index.md"
+    index.write_text(INDEX_CONTENT)
+    with (
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", prds),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", specs),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", plans),
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index),
+    ):
+        workflow_module.register(mcp)
+        yield mcp
+
+
+def test_list_artefacts_prd(mcp_with_artefacts):
+    result = mcp_with_artefacts.tools["list_artefacts"]("prd")
+    assert len(result) == 1
+    assert result[0]["filename"] == "prd-alpha.md"
+    assert "size_bytes" in result[0]
+    assert "modified_at" in result[0]
+
+
+def test_list_artefacts_spec(mcp_with_artefacts):
+    result = mcp_with_artefacts.tools["list_artefacts"]("spec")
+    assert len(result) == 1
+    assert result[0]["filename"] == "spec-alpha.md"
+
+
+def test_list_artefacts_plan(mcp_with_artefacts):
+    result = mcp_with_artefacts.tools["list_artefacts"]("plan")
+    assert len(result) == 1
+    assert result[0]["filename"] == "plan-alpha.md"
+
+
+def test_list_artefacts_all(mcp_with_artefacts):
+    result = mcp_with_artefacts.tools["list_artefacts"]("all")
+    assert len(result) == 3
+    types = {r["type"] for r in result}
+    assert types == {"prd", "spec", "plan"}
+
+
+def test_list_artefacts_invalid_type_raises(mcp_with_artefacts):
+    with pytest.raises(ValueError, match="artefact_type inválido"):
+        mcp_with_artefacts.tools["list_artefacts"]("unknown")
