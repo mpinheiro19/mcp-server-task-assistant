@@ -29,6 +29,7 @@ The server starts in STDIO mode. Configure your client to spawn it — see [Conf
 | [Resources Reference](docs/resources-reference.md) | All `flow://*` resource URIs |
 | [Prompts Reference](docs/prompts-reference.md) | Prompt templates and their injected context |
 | [Configuration](docs/configuration.md) | Environment variables, client setup (Claude Code / Cursor / Copilot) |
+| [VS Code Integration](docs/vscode-integration.md) | Step-by-step guide: register server, use tools in Copilot Chat, troubleshoot |
 | [Development](docs/development.md) | Setup, testing, adding new tools, release |
 
 ## Requirements
