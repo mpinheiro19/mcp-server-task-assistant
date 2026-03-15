@@ -1,4 +1,4 @@
-# Contributing to mcp-assistant
+# Contributing to MCP - Development Lifecycle Manager
 
 Thank you for your interest in contributing! We welcome all kinds of contributions: bug reports, feature requests, documentation improvements, and code.
 
