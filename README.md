@@ -2,7 +2,7 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-[![codecov](https://codecov.io/gh/mpinheiro19/mcp-assistant/branch/main/graph/badge.svg)](https://codecov.io/gh/mpinheiro19/mcp-assistant)
+[![codecov](https://codecov.io/gh/mpinheiro19/mcp-server-task-assistant/branch/main/graph/badge.svg)](https://codecov.io/gh/mpinheiro19/mcp-server-task-assistant)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 ![Pre-release](https://img.shields.io/github/v/release/mpinheiro19/mcp-server-task-assistant?include_prereleases&label=pre-release)
 
