@@ -141,8 +141,8 @@ def register(mcp) -> None:
     @mcp.tool()
     def get_workflow_status() -> dict:
         """
-        Retorna o status estruturado do index.md.
-        readOnlyHint=True — não modifica arquivos.
+        Returns the structured status from index.md.
+        readOnlyHint=True — does not modify files.
         """
         if not INDEX_FILE.exists():
             return {"features": [], "summary": {"done": 0, "in_progress": 0, "todo": 0}}
@@ -195,23 +195,23 @@ def register(mcp) -> None:
         implementation_status: str,
     ) -> str:
         """
-        Localiza linha por feature_name no index.md e atualiza os campos de status.
+        Finds a row by feature_name in index.md and updates the status fields.
 
-        plan_status válidos: '⏳ Waiting for Spec', '🟡 Spec Draft', '🟡 Pending', '🟢 Done'
-        implementation_status válidos: '❌ Todo', '🔄 In Progress', '✅ Concluído'
+        Valid plan_status: '⏳ Waiting for Spec', '🟡 Spec Draft', '🟡 Pending', '🟢 Done'
+        Valid implementation_status: '❌ Todo', '🔄 In Progress', '✅ Concluído'
         """
         valid_plan = {"⏳ Waiting for Spec", "🟡 Spec Draft", "🟡 Pending", "🟢 Done"}
         valid_impl = {"❌ Todo", "🔄 In Progress", "✅ Concluído"}
 
         if plan_status not in valid_plan:
-            raise ValueError(f"plan_status inválido: '{plan_status}'. Válidos: {valid_plan}")
+            raise ValueError(f"Invalid plan_status: '{plan_status}'. Valid values: {valid_plan}")
         if implementation_status not in valid_impl:
             raise ValueError(
-                f"implementation_status inválido: '{implementation_status}'. Válidos: {valid_impl}"
+                f"Invalid implementation_status: '{implementation_status}'. Valid values: {valid_impl}"
             )
 
         if not INDEX_FILE.exists():
-            raise FileNotFoundError("index.md não encontrado.")
+            raise FileNotFoundError("index.md not found.")
 
         text = INDEX_FILE.read_text()
         lines = text.splitlines(keepends=True)
@@ -246,10 +246,10 @@ def register(mcp) -> None:
     @mcp.tool()
     def check_duplicate(feature_name: str) -> dict:
         """
-        Verifica se já existe PRD, Spec ou Plan para feature_name.
-        Busca por slug exato e também por tokens individuais do slug para cobrir
-        arquivos com convenção camelCase ou slugs parcialmente diferentes.
-        readOnlyHint=True — não modifica arquivos.
+        Checks if a PRD, Spec or Plan already exists for feature_name.
+        Searches by exact slug and individual tokens to cover
+        camelCase conventions or partially different slugs.
+        readOnlyHint=True — does not modify files.
         """
         slug = _slugify(feature_name)
         tokens = [t for t in slug.split("-") if len(t) >= 4]
@@ -279,12 +279,12 @@ def register(mcp) -> None:
     @mcp.tool()
     def list_artefacts(artefact_type: str) -> list[dict]:
         """
-        Lista artefatos com filename, tamanho e data de modificação.
+        Lists artifacts with filename, size and modification date.
         artefact_type: 'prd' | 'spec' | 'plan' | 'all'
         """
         valid = {"prd", "spec", "plan", "all"}
         if artefact_type not in valid:
-            raise ValueError(f"artefact_type inválido: '{artefact_type}'. Válidos: {valid}")
+            raise ValueError(f"Invalid artefact_type: '{artefact_type}'. Valid values: {valid}")
 
         dirs: dict[str, Path] = {"prd": PRDS_DIR, "spec": SPECS_DIR, "plan": PLANS_DIR}
 

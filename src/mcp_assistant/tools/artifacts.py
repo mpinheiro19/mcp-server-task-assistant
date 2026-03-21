@@ -13,9 +13,9 @@ def register(mcp) -> None:
     @mcp.tool()
     def create_prd(feature_name: str, content: str) -> dict:
         """
-        Cria um novo arquivo PRD em prds/.
-        Slugifica feature_name → prd-<slug>.md. Verifica duplicata antes de criar.
-        Registra automaticamente o artefato no index.md após a criação.
+        Creates a new PRD file in prds/.
+        Slugifies feature_name → prd-<slug>.md. Checks for duplicates before creating.
+        Automatically registers the artifact in index.md after creation.
         """
         slug = _slugify(feature_name)
         filename = f"prd-{slug}.md"
@@ -23,7 +23,7 @@ def register(mcp) -> None:
 
         if path.exists():
             raise ValueError(
-                f"PRD '{filename}' já existe. Use um nome diferente ou incremente a versão."
+                f"PRD '{filename}' already exists. Use a different name or increment the version."
             )
 
         PRDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -39,10 +39,10 @@ def register(mcp) -> None:
     @mcp.tool()
     def create_spec(feature_name: str, prd_filename: str, content: str) -> dict:
         """
-        Cria um novo arquivo Spec em specs/.
-        Nome: spec-<prd-slug>-<feature-slug>.md
-        Atualiza o index.md: preenche spec_filename e muda plan_status para '🟡 Spec Draft'.
-        Preserva o implementation_status existente.
+        Creates a new Spec file in specs/.
+        Name: spec-<prd-slug>-<feature-slug>.md
+        Updates index.md: fills spec_filename and changes plan_status to '🟡 Spec Draft'.
+        Preserves the existing implementation_status.
         """
         prd_slug = re.sub(r"^prd-", "", prd_filename.removesuffix(".md"))
         feature_slug = _slugify(feature_name)
@@ -51,7 +51,7 @@ def register(mcp) -> None:
 
         if path.exists():
             raise ValueError(
-                f"Spec '{filename}' já existe. Use um nome diferente ou incremente a versão."
+                f"Spec '{filename}' already exists. Use a different name or increment the version."
             )
 
         SPECS_DIR.mkdir(parents=True, exist_ok=True)
@@ -69,10 +69,10 @@ def register(mcp) -> None:
     @mcp.tool()
     def create_plan(feature_name: str, spec_filename: str, content: str) -> dict:
         """
-        Cria um novo arquivo Plan em plans/.
-        Nome: plan-<feature-slug>.prompt.md
-        Atualiza o index.md: muda plan_status para '🟢 Done'. Preserva implementation_status.
-        spec_filename é necessário para localizar a linha correta no index.md.
+        Creates a new Plan file in plans/.
+        Name: plan-<feature-slug>.prompt.md
+        Updates index.md: changes plan_status to '🟢 Done'. Preserves implementation_status.
+        spec_filename is required to locate the correct row in index.md.
         """
         slug = _slugify(feature_name)
         filename = f"plan-{slug}.prompt.md"
@@ -80,7 +80,7 @@ def register(mcp) -> None:
 
         if path.exists():
             raise ValueError(
-                f"Plan '{filename}' já existe. Use um nome diferente ou incremente a versão."
+                f"Plan '{filename}' already exists. Use a different name or increment the version."
             )
 
         PLANS_DIR.mkdir(parents=True, exist_ok=True)
@@ -99,7 +99,7 @@ def register(mcp) -> None:
                 )
             else:
                 result["index_warning"] = (
-                    f"Spec '{spec_filename}' não encontrada no index.md; " "entrada não atualizada."
+                    f"Spec '{spec_filename}' not found in index.md; " "entry not updated."
                 )
         except Exception as exc:
             result["index_warning"] = str(exc)
