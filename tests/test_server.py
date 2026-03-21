@@ -12,8 +12,7 @@ Validates that the FastMCP server:
 
 import importlib
 import sys
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # 1. Server can be instantiated cleanly
@@ -180,9 +179,9 @@ def test_server_instructions_describe_workflow():
     from mcp_assistant.server import mcp
 
     instructions = mcp.instructions.lower()
-    assert "prd" in instructions or "spec" in instructions or "plan" in instructions, (
-        "Server instructions should describe the PRD→Spec→Plan workflow"
-    )
+    assert (
+        "prd" in instructions or "spec" in instructions or "plan" in instructions
+    ), "Server instructions should describe the PRD→Spec→Plan workflow"
 
 
 # ---------------------------------------------------------------------------

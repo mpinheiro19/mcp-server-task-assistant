@@ -20,7 +20,6 @@ import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
 from mcp_assistant.utils import _slugify
 
-
 # ---------------------------------------------------------------------------
 # Shared stubs
 # ---------------------------------------------------------------------------
@@ -220,7 +219,7 @@ def test_slugify_neutralises_injection_chars(malicious_name, expected_slug):
     slug = _slugify(malicious_name)
     assert slug == expected_slug
     # The slug must never contain shell-dangerous characters
-    for ch in [";", "|", "`", "$", "(", ")", "<", ">", "\"", "'", "&", "!"]:
+    for ch in [";", "|", "`", "$", "(", ")", "<", ">", '"', "'", "&", "!"]:
         assert ch not in slug, f"Dangerous char '{ch}' leaked into slug: {slug}"
 
 
@@ -262,9 +261,7 @@ def test_update_index_without_force_raises(tmp_path):
     ):
         workflow_module.register(mcp)
         with pytest.raises(PermissionError, match="force=True"):
-            mcp.tools["update_index"](
-                "prd-foo.md", "spec-foo.md", "Foo", "🟢 Done", "✅ Concluído"
-            )
+            mcp.tools["update_index"]("prd-foo.md", "spec-foo.md", "Foo", "🟢 Done", "✅ Concluído")
 
 
 # ---------------------------------------------------------------------------

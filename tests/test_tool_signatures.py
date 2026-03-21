@@ -17,7 +17,6 @@ from unittest.mock import patch
 import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -100,18 +99,18 @@ def test_artifact_tool_parameters_are_typed(all_tools, artifact_tool_name):
     fn = all_tools[artifact_tool_name]
     sig = inspect.signature(fn)
     for name, param in sig.parameters.items():
-        assert param.annotation is not inspect.Parameter.empty, (
-            f"{artifact_tool_name}: parameter '{name}' has no type annotation"
-        )
+        assert (
+            param.annotation is not inspect.Parameter.empty
+        ), f"{artifact_tool_name}: parameter '{name}' has no type annotation"
 
 
 def test_workflow_tool_parameters_are_typed(all_tools, workflow_tool_name):
     fn = all_tools[workflow_tool_name]
     sig = inspect.signature(fn)
     for name, param in sig.parameters.items():
-        assert param.annotation is not inspect.Parameter.empty, (
-            f"{workflow_tool_name}: parameter '{name}' has no type annotation"
-        )
+        assert (
+            param.annotation is not inspect.Parameter.empty
+        ), f"{workflow_tool_name}: parameter '{name}' has no type annotation"
 
 
 # ---------------------------------------------------------------------------
@@ -122,17 +121,17 @@ def test_workflow_tool_parameters_are_typed(all_tools, workflow_tool_name):
 def test_artifact_tool_has_return_annotation(all_tools, artifact_tool_name):
     fn = all_tools[artifact_tool_name]
     sig = inspect.signature(fn)
-    assert sig.return_annotation is not inspect.Parameter.empty, (
-        f"{artifact_tool_name}: missing return type annotation"
-    )
+    assert (
+        sig.return_annotation is not inspect.Parameter.empty
+    ), f"{artifact_tool_name}: missing return type annotation"
 
 
 def test_workflow_tool_has_return_annotation(all_tools, workflow_tool_name):
     fn = all_tools[workflow_tool_name]
     sig = inspect.signature(fn)
-    assert sig.return_annotation is not inspect.Parameter.empty, (
-        f"{workflow_tool_name}: missing return type annotation"
-    )
+    assert (
+        sig.return_annotation is not inspect.Parameter.empty
+    ), f"{workflow_tool_name}: missing return type annotation"
 
 
 # ---------------------------------------------------------------------------
@@ -145,17 +144,17 @@ _MIN_DOCSTRING_LEN = 20
 def test_artifact_tool_has_docstring(all_tools, artifact_tool_name):
     fn = all_tools[artifact_tool_name]
     doc = inspect.getdoc(fn) or ""
-    assert len(doc) >= _MIN_DOCSTRING_LEN, (
-        f"{artifact_tool_name}: docstring too short ({len(doc)} chars)"
-    )
+    assert (
+        len(doc) >= _MIN_DOCSTRING_LEN
+    ), f"{artifact_tool_name}: docstring too short ({len(doc)} chars)"
 
 
 def test_workflow_tool_has_docstring(all_tools, workflow_tool_name):
     fn = all_tools[workflow_tool_name]
     doc = inspect.getdoc(fn) or ""
-    assert len(doc) >= _MIN_DOCSTRING_LEN, (
-        f"{workflow_tool_name}: docstring too short ({len(doc)} chars)"
-    )
+    assert (
+        len(doc) >= _MIN_DOCSTRING_LEN
+    ), f"{workflow_tool_name}: docstring too short ({len(doc)} chars)"
 
 
 # ---------------------------------------------------------------------------
@@ -191,9 +190,9 @@ def test_update_index_docstring_warns_about_force(all_tools):
 
 def test_check_duplicate_docstring_is_readonly(all_tools):
     doc = inspect.getdoc(all_tools["check_duplicate"]) or ""
-    assert any(kw in doc.lower() for kw in ("read", "modify", "hint")), (
-        "check_duplicate docstring should state it is read-only"
-    )
+    assert any(
+        kw in doc.lower() for kw in ("read", "modify", "hint")
+    ), "check_duplicate docstring should state it is read-only"
 
 
 # ---------------------------------------------------------------------------
@@ -203,12 +202,12 @@ def test_check_duplicate_docstring_is_readonly(all_tools):
 
 def test_advance_stage_docstring_lists_valid_statuses(all_tools):
     doc = inspect.getdoc(all_tools["advance_stage"]) or ""
-    assert "⏳" in doc or "Waiting" in doc, (
-        "advance_stage docstring must list valid plan_status values"
-    )
-    assert "❌" in doc or "Todo" in doc, (
-        "advance_stage docstring must list valid implementation_status values"
-    )
+    assert (
+        "⏳" in doc or "Waiting" in doc
+    ), "advance_stage docstring must list valid plan_status values"
+    assert (
+        "❌" in doc or "Todo" in doc
+    ), "advance_stage docstring must list valid implementation_status values"
 
 
 # ---------------------------------------------------------------------------
@@ -217,17 +216,17 @@ def test_advance_stage_docstring_lists_valid_statuses(all_tools):
 
 
 def test_create_prd_returns_dict(all_tools):
-    import typing
 
     sig = inspect.signature(all_tools["create_prd"])
-    assert sig.return_annotation in (dict, typing.Dict, "dict"), (
-        "create_prd must declare -> dict return type"
-    )
+    assert sig.return_annotation in (
+        dict,
+        dict,
+        "dict",
+    ), "create_prd must declare -> dict return type"
 
 
 def test_list_artefacts_returns_list(all_tools):
-    import typing
 
     sig = inspect.signature(all_tools["list_artefacts"])
     origin = getattr(sig.return_annotation, "__origin__", sig.return_annotation)
-    assert origin in (list, typing.List), "list_artefacts must declare -> list[dict] return type"
+    assert origin in (list, list), "list_artefacts must declare -> list[dict] return type"

@@ -22,7 +22,6 @@ import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
 from mcp_assistant.utils import _parse_index_table
 
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -88,7 +87,9 @@ def _assert_json_serialisable(value, context: str = "") -> None:
     try:
         json.dumps(value)
     except (TypeError, ValueError) as exc:
-        pytest.fail(f"Return value is not JSON-serialisable{' (' + context + ')' if context else ''}: {exc}")
+        pytest.fail(
+            f"Return value is not JSON-serialisable{' (' + context + ')' if context else ''}: {exc}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +102,9 @@ def test_full_lifecycle_prd_spec_plan(env):
     tools = d["tools"]
 
     # Stage 1 — create PRD
-    prd_result = tools["create_prd"]("Payment Gateway", "# PRD: Payment Gateway\n\nEnable payments.")
+    prd_result = tools["create_prd"](
+        "Payment Gateway", "# PRD: Payment Gateway\n\nEnable payments."
+    )
     assert prd_result["filename"] == "prd-payment-gateway.md"
     _assert_json_serialisable(prd_result, "create_prd")
 
