@@ -1,8 +1,14 @@
 {
-  "mcpServers": {
+  "servers": {
     "assistant-flow": {
+      "type": "stdio",
       "command": "uv",
-      "args": ["run", "--directory", "/home/mpinheiro19/Codes/mcp-assistant", "mcp-assistant"],
+      "args": [
+        "run",
+        "--directory",
+        "/home/mpinheiro19/Codes/mcp-assistant",
+        "mcp-assistant"
+      ],
       "env": {
         "ASSISTANT_FLOW_ROOT": "/home/mpinheiro19/Codes"
       }

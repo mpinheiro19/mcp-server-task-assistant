@@ -7,23 +7,33 @@
 ![Pre-release](https://img.shields.io/github/v/release/mpinheiro19/mcp-server-task-assistant?include_prereleases&label=pre-release)
 
 MCP server that manages the **PRD → Spec → Plan** artifact lifecycle for software projects.
-Exposes tools, resources, and prompt templates consumed by Claude Code, Cursor, and VS Code Copilot via STDIO transport.
+Exposes tools, resources, and prompt templates via STDIO transport (consumed by Claude Code, Cursor, VS Code Copilot) and a standalone FastAPI REST API for browser and scripted clients.
 
 ## Quick Start
 
+**STDIO (MCP clients — Claude Code, Cursor, VS Code Copilot):**
 ```bash
 uv sync
 uv run mcp-assistant
 ```
 
-The server starts in STDIO mode. Configure your client to spawn it — see [Configuration](docs/configuration.md).
+**REST API (HTTP clients, browsers, scripts):**
+```bash
+uv sync
+uv run mcp-assistant-api
+# → http://localhost:8000  |  docs at /docs
+```
+
+Configure the MCP client to spawn the STDIO server — see [Configuration](docs/configuration.md).
+Configure CORS, auth and ports — see [REST API](docs/rest-api.md).
 
 ## Features
 
 - 📝 Artifact lifecycle: PRD → Spec → Plan
 - 🛠️ Exposes tools and prompt templates for LLM-based assistants
 - 📂 Read-only resource URIs for filesystem state
-- ⚡ Fast, stateless STDIO server
+- ⚡ Fast, stateless STDIO server (MCP transport)
+- 🌐 FastAPI REST API with OpenAPI docs, CORS, and optional OAuth2
 - 🧩 Integrates with Claude Code, Cursor, and VS Code Copilot
 
 ## What It Does
@@ -44,13 +54,15 @@ The server starts in STDIO mode. Configure your client to spawn it — see [Conf
 | [Prompts Reference](docs/prompts-reference.md) | Prompt templates and their injected context |
 | [Configuration](docs/configuration.md) | Environment variables, client setup (Claude Code / Cursor / Copilot) |
 | [VS Code Integration](docs/vscode-integration.md) | Step-by-step guide: register server, use tools in Copilot Chat, troubleshoot |
+| [REST API](docs/rest-api.md) | HTTP endpoints, auth, CORS, env vars, error format |
 | [Development](docs/development.md) | Setup, testing, adding new tools, release |
 
 ## Requirements
 
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/)
-- `fastmcp >= 3.1.1`
+- `fastmcp >= 3.1.1` (STDIO server)
+- `fastapi >= 0.110`, `uvicorn >= 0.29` (REST API)
 
 ## Example Usage
 
