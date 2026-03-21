@@ -42,6 +42,8 @@ def register(mcp) -> None:
     def spec_from_prd(prd_filename: str) -> list[Message]:
         """Generates prompt to create a Spec from a PRD."""
         prd_path = PRDS_DIR / prd_filename
+        if not prd_path.resolve().is_relative_to(PRDS_DIR.resolve()):
+            raise ValueError(f"Invalid filename: '{prd_filename}'")
         if not prd_path.exists():
             raise ValueError(f"PRD '{prd_filename}' not found.")
 
@@ -69,6 +71,8 @@ def register(mcp) -> None:
     def plan_from_spec(spec_filename: str) -> list[Message]:
         """Generates prompt to create a Plan from a Spec."""
         spec_path = SPECS_DIR / spec_filename
+        if not spec_path.resolve().is_relative_to(SPECS_DIR.resolve()):
+            raise ValueError(f"Invalid filename: '{spec_filename}'")
         if not spec_path.exists():
             raise ValueError(f"Spec '{spec_filename}' not found.")
 
@@ -105,6 +109,8 @@ def register(mcp) -> None:
             raise ValueError(f"Invalid artefact_type: '{artefact_type}'")
 
         path = dirs[artefact_type] / filename
+        if not path.resolve().is_relative_to(dirs[artefact_type].resolve()):
+            raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
             raise ValueError(f"File '{filename}' not found in {dirs[artefact_type]}.")
 

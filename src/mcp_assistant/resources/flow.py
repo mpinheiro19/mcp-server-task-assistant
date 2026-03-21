@@ -59,6 +59,8 @@ def register(mcp) -> None:
     def get_prd(filename: str) -> str:
         """Contents of a specific PRD"""
         path = PRDS_DIR / filename
+        if not path.resolve().is_relative_to(PRDS_DIR.resolve()):
+            raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
             raise ValueError(f"PRD '{filename}' not found")
         return path.read_text()
@@ -67,6 +69,8 @@ def register(mcp) -> None:
     def get_spec(filename: str) -> str:
         """Contents of a specific Spec"""
         path = SPECS_DIR / filename
+        if not path.resolve().is_relative_to(SPECS_DIR.resolve()):
+            raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
             raise ValueError(f"Spec '{filename}' not found")
         return path.read_text()
@@ -75,6 +79,8 @@ def register(mcp) -> None:
     def get_plan(filename: str) -> str:
         """Contents of a specific Plan"""
         path = PLANS_DIR / filename
+        if not path.resolve().is_relative_to(PLANS_DIR.resolve()):
+            raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
             raise ValueError(f"Plan '{filename}' not found")
         return path.read_text()
