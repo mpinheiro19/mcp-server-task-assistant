@@ -11,33 +11,42 @@ from mcp_assistant.api.models.auth import UserInfo
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _oauth2_enabled() -> bool:
+    return os.getenv("ENABLE_OAUTH2", "false").lower() == "true"
+
+
 @router.get("/login")
 async def login() -> Response:
-    if not AuthConfig.ENABLE_OAUTH2:
+    if not _oauth2_enabled():
         return Response(content='{"enabled": false}', media_type="application/json")
 
     params = {
-        "client_id": AuthConfig.CLIENT_ID,
-        "redirect_uri": AuthConfig.CALLBACK_URL,
+        "client_id": os.getenv("OAUTH2_CLIENT_ID", ""),
+        "redirect_uri": os.getenv("OAUTH2_CALLBACK_URL", "http://localhost:8000/auth/callback"),
         "scope": "read:user user:email",
     }
     query = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(url=f"{AuthConfig.AUTHORIZE_URL}?{query}")
+    authorize_url = os.getenv(
+        "OAUTH2_AUTHORIZE_URL", "https://github.com/login/oauth/authorize"
+    )
+    return RedirectResponse(url=f"{authorize_url}?{query}")
 
 
 @router.get("/callback")
 async def callback(code: str, response: Response) -> Response:
-    if not AuthConfig.ENABLE_OAUTH2:
+    if not _oauth2_enabled():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="OAuth2 not enabled")
 
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
-            AuthConfig.TOKEN_URL,
+            os.getenv("OAUTH2_TOKEN_URL", "https://github.com/login/oauth/access_token"),
             data={
-                "client_id": AuthConfig.CLIENT_ID,
-                "client_secret": AuthConfig.CLIENT_SECRET,
+                "client_id": os.getenv("OAUTH2_CLIENT_ID", ""),
+                "client_secret": os.getenv("OAUTH2_CLIENT_SECRET", ""),
                 "code": code,
-                "redirect_uri": AuthConfig.CALLBACK_URL,
+                "redirect_uri": os.getenv(
+                    "OAUTH2_CALLBACK_URL", "http://localhost:8000/auth/callback"
+                ),
             },
             headers={"Accept": "application/json"},
         )
@@ -46,7 +55,7 @@ async def callback(code: str, response: Response) -> Response:
         access_token = token_data.get("access_token", "")
 
         userinfo_resp = await client.get(
-            AuthConfig.USERINFO_URL,
+            os.getenv("OAUTH2_USERINFO_URL", "https://api.github.com/user"),
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Accept": "application/json",
@@ -78,7 +87,7 @@ async def callback(code: str, response: Response) -> Response:
 
 @router.get("/me")
 async def me(user: UserInfo | None = Depends(get_current_user)) -> Response:
-    if not AuthConfig.ENABLE_OAUTH2:
+    if not _oauth2_enabled():
         from fastapi.responses import JSONResponse
 
         return JSONResponse({"auth_enabled": False})
