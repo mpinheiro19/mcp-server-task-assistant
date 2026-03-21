@@ -73,19 +73,19 @@ def test_advance_stage_updates_status(mcp_with_tools):
 
 def test_advance_stage_invalid_plan_status(mcp_with_tools):
     mcp, _ = mcp_with_tools
-    with pytest.raises(ValueError, match="plan_status inválido"):
+    with pytest.raises(ValueError, match="Invalid plan_status"):
         mcp.tools["advance_stage"]("Bar Feature", "Invalid", "❌ Todo")
 
 
 def test_advance_stage_invalid_impl_status(mcp_with_tools):
     mcp, _ = mcp_with_tools
-    with pytest.raises(ValueError, match="implementation_status inválido"):
+    with pytest.raises(ValueError, match="Invalid implementation_status"):
         mcp.tools["advance_stage"]("Bar Feature", "🟢 Done", "Invalid")
 
 
 def test_advance_stage_feature_not_found(mcp_with_tools):
     mcp, _ = mcp_with_tools
-    with pytest.raises(ValueError, match="não encontrada"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.tools["advance_stage"]("Nonexistent", "🟢 Done", "✅ Concluído")
 
 
@@ -128,7 +128,7 @@ def test_update_index_creates_index_when_missing(mcp_with_tools):
     mcp, index_file = mcp_with_tools
     index_file.unlink()
     content = mcp.tools["update_index"](
-        "prd-new.md", "spec-new.md", "New Feature", "🟡 Pending", "❌ Todo"
+        "prd-new.md", "spec-new.md", "New Feature", "🟡 Pending", "❌ Todo", force=True
     )
     assert "prd-new.md" in content
     assert "New Feature" in content
@@ -137,7 +137,9 @@ def test_update_index_creates_index_when_missing(mcp_with_tools):
 
 def test_update_index_appends_new_row(mcp_with_tools):
     mcp, index_file = mcp_with_tools
-    mcp.tools["update_index"]("prd-baz.md", "spec-baz.md", "Baz Feature", "🟢 Done", "✅ Concluído")
+    mcp.tools["update_index"](
+        "prd-baz.md", "spec-baz.md", "Baz Feature", "🟢 Done", "✅ Concluído", force=True
+    )
     rows = _parse_index_table(index_file.read_text())
     assert any(r["prd"] == "prd-baz.md" for r in rows)
 
@@ -145,7 +147,7 @@ def test_update_index_appends_new_row(mcp_with_tools):
 def test_update_index_replaces_existing_row(mcp_with_tools):
     mcp, index_file = mcp_with_tools
     mcp.tools["update_index"](
-        "prd-foo.md", "spec-foo.md", "Foo Feature", "🟡 Pending", "🔄 In Progress"
+        "prd-foo.md", "spec-foo.md", "Foo Feature", "🟡 Pending", "🔄 In Progress", force=True
     )
     rows = _parse_index_table(index_file.read_text())
     foo = next(r for r in rows if r["prd"] == "prd-foo.md")
@@ -208,5 +210,77 @@ def test_list_artefacts_all(mcp_with_artefacts):
 
 
 def test_list_artefacts_invalid_type_raises(mcp_with_artefacts):
-    with pytest.raises(ValueError, match="artefact_type inválido"):
+    with pytest.raises(ValueError, match="Invalid artefact_type"):
         mcp_with_artefacts.tools["list_artefacts"]("unknown")
+
+
+# --- update_index force guard ---
+
+
+def test_update_index_force_false_raises(mcp_with_tools):
+    mcp, _ = mcp_with_tools
+    with pytest.raises(PermissionError, match="force=True"):
+        mcp.tools["update_index"](
+            "prd-foo.md", "spec-foo.md", "Foo Feature", "🟢 Done", "❌ Todo"
+        )
+
+
+def test_update_index_force_true_works(mcp_with_tools):
+    mcp, index_file = mcp_with_tools
+    content = mcp.tools["update_index"](
+        "prd-foo.md", "spec-foo-updated.md", "Foo Feature", "🟢 Done", "✅ Concluído", force=True
+    )
+    assert "spec-foo-updated.md" in content
+
+
+# --- sync_index ---
+
+
+def test_sync_index_adds_missing_prd(tmp_path):
+    mcp = CaptureMCP()
+    prds = tmp_path / "prds"
+    prds.mkdir()
+    (prds / "prd-nova-feature.md").write_text("# PRD")
+    index_file = tmp_path / "index.md"
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", prds),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        result = mcp.tools["sync_index"]()
+    assert "prd-nova-feature.md" in result["added"]
+    rows = _parse_index_table(index_file.read_text())
+    assert len(rows) == 1
+    assert rows[0]["plan_status"] == "⏳ Waiting for Spec"
+    assert rows[0]["implementation"] == "❌ Todo"
+
+
+def test_sync_index_updates_spec_field(tmp_path):
+    mcp = CaptureMCP()
+    prds = tmp_path / "prds"
+    prds.mkdir()
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    (prds / "prd-foo.md").write_text("# PRD")
+    (specs / "spec-foo-bar.md").write_text("# Spec")
+    index_file = tmp_path / "index.md"
+    index_file.write_text(
+        "| PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |\n"
+        "| :--- | :--- | :--- | :--- | :--- |\n"
+        "| prd-foo.md |  | Foo | ⏳ Waiting for Spec | ❌ Todo |\n"
+    )
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", prds),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", specs),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        result = mcp.tools["sync_index"]()
+    assert "prd-foo.md" in result["updated"]
+    rows = _parse_index_table(index_file.read_text())
+    foo = next(r for r in rows if r["prd"] == "prd-foo.md")
+    assert foo["spec"] == "spec-foo-bar.md"
+    assert foo["plan_status"] == "🟡 Spec Draft"

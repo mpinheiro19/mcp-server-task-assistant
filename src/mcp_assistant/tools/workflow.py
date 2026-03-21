@@ -14,7 +14,7 @@ def _update_index(
 ) -> str:
     """Upsert a row keyed by prd_filename in index.md. Creates the file if absent."""
     header = (
-        "| PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |\n"
+        "| PRD Source | Spec (File) | Feature | Plan Status | Implementation |\n"
         "| :--- | :--- | :--- | :--- | :--- |"
     )
     new_row = (
@@ -237,7 +237,7 @@ def register(mcp) -> None:
             new_lines.append(line)
 
         if not updated:
-            raise ValueError(f"Feature '{feature_name}' não encontrada em index.md.")
+            raise ValueError(f"Feature '{feature_name}' not found in index.md.")
 
         content = "".join(new_lines)
         INDEX_FILE.write_text(content)

@@ -12,7 +12,7 @@ def _slugify(name: str) -> str:
 
 
 def _parse_index_table(text: str) -> list[dict]:
-    """Parseia tabela markdown do index.md retornando lista de dicts."""
+    """Parse the markdown table in index.md and return a list of row dicts."""
     features = []
     for line in text.splitlines():
         line = line.strip()
