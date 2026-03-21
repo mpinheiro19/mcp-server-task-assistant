@@ -83,7 +83,7 @@ def test_prd_from_idea_includes_index_when_present(mcp_and_prompts):
 def test_prd_from_idea_fallback_when_index_missing(mcp_and_prompts):
     mcp, _ = mcp_and_prompts
     result = mcp.prompts["prd_from_idea"]("Anything")
-    assert "ainda não existe" in result[0].content.text
+    assert "does not exist yet" in result[0].content.text
 
 
 def test_prd_from_idea_injects_protocol_when_present(mcp_and_prompts):
@@ -98,7 +98,7 @@ def test_prd_from_idea_injects_protocol_when_present(mcp_and_prompts):
 
 def test_spec_from_prd_raises_when_prd_missing(mcp_and_prompts):
     mcp, _ = mcp_and_prompts
-    with pytest.raises(ValueError, match="não encontrado"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.prompts["spec_from_prd"]("prd-missing.md")
 
 
@@ -124,7 +124,7 @@ def test_spec_from_prd_injects_tech_spec_template(mcp_and_prompts):
 
 def test_plan_from_spec_raises_when_spec_missing(mcp_and_prompts):
     mcp, _ = mcp_and_prompts
-    with pytest.raises(ValueError, match="não encontrada"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.prompts["plan_from_spec"]("spec-missing.md")
 
 
@@ -149,13 +149,13 @@ def test_plan_from_spec_injects_example_plan_when_present(mcp_and_prompts):
 
 def test_review_artefact_invalid_type_raises(mcp_and_prompts):
     mcp, _ = mcp_and_prompts
-    with pytest.raises(ValueError, match="artefact_type inválido"):
+    with pytest.raises(ValueError, match="Invalid artefact_type"):
         mcp.prompts["review_artefact"]("file.md", "unknown")
 
 
 def test_review_artefact_missing_file_raises(mcp_and_prompts):
     mcp, _ = mcp_and_prompts
-    with pytest.raises(ValueError, match="não encontrado"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.prompts["review_artefact"]("prd-missing.md", "prd")
 
 

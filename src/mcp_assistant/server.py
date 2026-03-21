@@ -6,7 +6,7 @@ from mcp_assistant.tools import artifacts, workflow
 
 mcp = FastMCP(
     name="AssistantFlowServer",
-    instructions="Gerencia o ciclo PRD→Spec→Plan. Sempre verifique duplicatas antes de criar artefatos.",
+    instructions="Manages the PRD→Spec→Plan cycle. Always check for duplicates before creating artifacts.",
 )
 
 artifacts.register(mcp)

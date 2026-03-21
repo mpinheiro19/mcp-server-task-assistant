@@ -64,7 +64,7 @@ def mcp_and_dirs(tmp_path):
 
 def test_get_index_missing(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
-    assert "não encontrado" in mcp.resources["flow://index"]()
+    assert "not found" in mcp.resources["flow://index"]()
 
 
 def test_get_index_returns_content(mcp_and_dirs):
@@ -78,7 +78,7 @@ def test_get_index_returns_content(mcp_and_dirs):
 
 def test_get_copilot_instructions_missing(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
-    assert "não encontrado" in mcp.resources["flow://copilot-instructions"]()
+    assert "not found" in mcp.resources["flow://copilot-instructions"]()
 
 
 def test_get_copilot_instructions_returns_content(mcp_and_dirs):
@@ -143,7 +143,7 @@ def test_get_prd_returns_content(mcp_and_dirs):
 
 def test_get_prd_missing_raises(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
-    with pytest.raises(ValueError, match="não encontrado"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.resources["flow://prd/{filename}"]("prd-missing.md")
 
 
@@ -156,7 +156,7 @@ def test_get_spec_returns_content(mcp_and_dirs):
 
 def test_get_spec_missing_raises(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
-    with pytest.raises(ValueError, match="não encontrada"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.resources["flow://spec/{filename}"]("spec-missing.md")
 
 
@@ -169,5 +169,5 @@ def test_get_plan_returns_content(mcp_and_dirs):
 
 def test_get_plan_missing_raises(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
-    with pytest.raises(ValueError, match="não encontrado"):
+    with pytest.raises(ValueError, match="not found"):
         mcp.resources["flow://plan/{filename}"]("plan-missing.md")
