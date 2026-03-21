@@ -1,8 +1,3 @@
-import json
-
-import pytest
-
-
 async def test_get_index_missing(client):
     resp = await client.get("/api/v1/resources/index")
     assert resp.status_code == 200

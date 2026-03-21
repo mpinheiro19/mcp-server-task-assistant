@@ -1,5 +1,3 @@
-import pytest
-
 INDEX_CONTENT = """\
 | PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |
 | :--- | :--- | :--- | :--- | :--- |

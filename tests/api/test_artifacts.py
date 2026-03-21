@@ -1,6 +1,3 @@
-import pytest
-
-
 async def test_create_prd(client):
     resp = await client.post(
         "/api/v1/artifacts/prds",

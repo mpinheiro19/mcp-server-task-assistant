@@ -4,7 +4,6 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import RedirectResponse
 
-from mcp_assistant.api.auth.config import AuthConfig
 from mcp_assistant.api.auth.dependencies import get_current_user, make_session_cookie
 from mcp_assistant.api.models.auth import UserInfo
 
@@ -26,9 +25,7 @@ async def login() -> Response:
         "scope": "read:user user:email",
     }
     query = "&".join(f"{k}={v}" for k, v in params.items())
-    authorize_url = os.getenv(
-        "OAUTH2_AUTHORIZE_URL", "https://github.com/login/oauth/authorize"
-    )
+    authorize_url = os.getenv("OAUTH2_AUTHORIZE_URL", "https://github.com/login/oauth/authorize")
     return RedirectResponse(url=f"{authorize_url}?{query}")
 
 

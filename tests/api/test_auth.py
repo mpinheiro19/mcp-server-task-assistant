@@ -1,11 +1,10 @@
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mcp_assistant.api.app import create_app
-from mcp_assistant.api.auth.dependencies import get_current_user, make_session_cookie
+from mcp_assistant.api.auth.dependencies import make_session_cookie
 from mcp_assistant.api.models.auth import UserInfo
 
 
@@ -51,9 +50,7 @@ async def test_callback_enabled_exchanges_code(fake_dirs):
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
         with patch("mcp_assistant.api.auth.router.httpx.AsyncClient", return_value=mock_client):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as ac:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
                 resp = await ac.get("/auth/callback?code=abc", follow_redirects=False)
 
     assert resp.status_code in (302, 307)

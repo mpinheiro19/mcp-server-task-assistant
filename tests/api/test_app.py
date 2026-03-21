@@ -1,7 +1,6 @@
 import os
 from unittest.mock import patch
 
-import pytest
 from httpx import ASGITransport, AsyncClient
 
 from mcp_assistant.api.app import create_app
