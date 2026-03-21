@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
+import mcp_assistant.prompts.templates as templates_module
 import mcp_assistant.resources.flow as flow_module
 import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
@@ -106,9 +107,6 @@ def test_get_plan_rejects_path_traversal(tmp_path, bad_filename):
 # ---------------------------------------------------------------------------
 # 2. Path traversal — prompts
 # ---------------------------------------------------------------------------
-
-
-import mcp_assistant.prompts.templates as templates_module
 
 
 class CaptureMCPPrompts:

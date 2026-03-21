@@ -14,6 +14,8 @@ needed for a well-behaved MCP server:
 import inspect
 from unittest.mock import patch
 
+import pytest
+
 import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
 
@@ -61,8 +63,6 @@ def _collect_tools(tmp_path) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 # Parametrised fixture — one test instance per tool
 # ---------------------------------------------------------------------------
-
-import pytest
 
 
 @pytest.fixture(scope="module")
