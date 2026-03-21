@@ -1,6 +1,6 @@
 [project]
 name = "mcp-assistant"
-version = "0.1.0"
+version = "1.0.0b2"
 description = "MCP Server for Assistant Flow"
 requires-python = ">=3.10"
 dependencies = ["fastmcp>=3.1.1"]
@@ -17,9 +17,10 @@ packages = ["src/mcp_assistant"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.4.0", "black>=24.0.0", "pytest-cov>=5.0"]
+dev = ["pytest>=8.0", "ruff>=0.4.0", "black>=24.0.0", "pytest-cov>=5.0", "pytest-asyncio>=1.0"]
 
 [tool.black]
 line-length = 100

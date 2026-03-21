@@ -1,9 +1,10 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import mcp_assistant.config as config_module
 import mcp_assistant.tools.artifacts as artifacts_module
+from mcp_assistant.tools.artifacts import IdeaDetails, _render_prd_draft
 from mcp_assistant.utils import _parse_index_table
 
 
@@ -133,3 +134,190 @@ def test_create_prd_index_failure_best_effort(mcp_and_tools):
     assert (dirs["prds"] / "prd-fail-feature.md").exists()
     assert "index_warning" in result
     assert "disk full" in result["index_warning"]
+
+
+# ---------------------------------------------------------------------------
+# _render_prd_draft helper tests
+# ---------------------------------------------------------------------------
+
+
+def _make_details(**overrides) -> IdeaDetails:
+    defaults = {
+        "problem_statement": "Users cannot log in",
+        "target_audience": "End users",
+        "success_metrics": "Login success rate > 99%",
+        "scope_in": "OAuth2 flow",
+    }
+    return IdeaDetails(**{**defaults, **overrides})
+
+
+def test_render_prd_draft_contains_required_sections():
+    details = _make_details()
+    draft = _render_prd_draft("Login Feature", details)
+    assert "# PRD: Login Feature" in draft
+    assert "## Problem Statement" in draft
+    assert "## Target Audience" in draft
+    assert "## Success Metrics" in draft
+    assert "## Scope" in draft
+    assert "## Priority" in draft
+
+
+def test_render_prd_draft_optional_sections_omitted_when_empty():
+    details = _make_details()
+    draft = _render_prd_draft("My Feature", details)
+    assert "## Constraints" not in draft
+    assert "## Dependencies" not in draft
+    assert "## Acceptance Criteria" not in draft
+    assert "## Technical Notes" not in draft
+
+
+def test_render_prd_draft_optional_sections_included_when_set():
+    details = _make_details(
+        constraints="Must be GDPR compliant",
+        dependencies="Auth service",
+        acceptance_criteria="All tests pass",
+        technical_notes="Use JWT",
+    )
+    draft = _render_prd_draft("My Feature", details)
+    assert "## Constraints" in draft
+    assert "## Dependencies" in draft
+    assert "## Acceptance Criteria" in draft
+    assert "## Technical Notes" in draft
+
+
+# ---------------------------------------------------------------------------
+# ideate_prd unit tests (mock ctx)
+# ---------------------------------------------------------------------------
+
+
+def _accepted(data):
+    """Create a minimal AcceptedElicitation-like mock."""
+    m = MagicMock()
+    m.action = "accept"
+    m.data = data
+    return m
+
+
+def _cancelled():
+    m = MagicMock()
+    m.action = "cancel"
+    return m
+
+
+def _declined():
+    m = MagicMock()
+    m.action = "decline"
+    return m
+
+
+@pytest.fixture()
+def mock_ctx():
+    ctx = MagicMock()
+    ctx.elicit = AsyncMock()
+    return ctx
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_full_flow_saves_prd(mcp_and_tools, mock_ctx):
+    mcp, dirs = mcp_and_tools
+    mock_ctx.elicit.side_effect = [
+        _accepted("My New Feature"),  # title
+        _accepted(  # details
+            IdeaDetails(
+                problem_statement="A problem",
+                target_audience="Devs",
+                success_metrics="metric",
+                scope_in="everything",
+            )
+        ),
+        _accepted({}),  # approval
+    ]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is True
+    assert result["filename"] == "prd-my-new-feature.md"
+    assert (dirs["prds"] / "prd-my-new-feature.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_cancel_at_title(mcp_and_tools, mock_ctx):
+    mcp, dirs = mcp_and_tools
+    mock_ctx.elicit.side_effect = [_cancelled()]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is False
+    assert "title" in result["reason"].lower()
+    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_decline_at_details(mcp_and_tools, mock_ctx):
+    mcp, dirs = mcp_and_tools
+    mock_ctx.elicit.side_effect = [
+        _accepted("Feature X"),  # title
+        _declined(),  # details
+    ]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is False
+    assert "details" in result["reason"].lower()
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_cancel_at_approval(mcp_and_tools, mock_ctx):
+    mcp, dirs = mcp_and_tools
+    mock_ctx.elicit.side_effect = [
+        _accepted("Feature Y"),
+        _accepted(
+            IdeaDetails(
+                problem_statement="prob",
+                target_audience="users",
+                success_metrics="m",
+                scope_in="s",
+            )
+        ),
+        _cancelled(),  # approval
+    ]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is False
+    assert "approval" in result["reason"].lower()
+    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_duplicate_found_user_continues(mcp_and_tools, mock_ctx):
+    """When a similar (but not identical) PRD exists, user accepts → new PRD saved."""
+    mcp, dirs = mcp_and_tools
+    # Create a related PRD (similar slug tokens) but with a different exact name
+    dirs["prds"].mkdir(parents=True, exist_ok=True)
+    (dirs["prds"] / "prd-dark-mode-beta.md").write_text("existing")
+
+    mock_ctx.elicit.side_effect = [
+        _accepted("Dark Mode"),  # title
+        _accepted({}),  # continue despite duplicate warning
+        _accepted(  # details
+            IdeaDetails(
+                problem_statement="dark theme",
+                target_audience="users",
+                success_metrics="adoption",
+                scope_in="UI",
+            )
+        ),
+        _accepted({}),  # approval
+    ]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is True
+    assert result["filename"] == "prd-dark-mode.md"
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_duplicate_found_user_cancels(mcp_and_tools, mock_ctx):
+    """When a similar PRD exists and user cancels the warning prompt, no file is saved."""
+    mcp, dirs = mcp_and_tools
+    dirs["prds"].mkdir(parents=True, exist_ok=True)
+    (dirs["prds"] / "prd-dark-mode-old.md").write_text("existing")
+
+    mock_ctx.elicit.side_effect = [
+        _accepted("Dark Mode"),  # title
+        _cancelled(),  # cancel at duplicate warning
+    ]
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is False
+    assert "duplicate" in result["reason"].lower()
