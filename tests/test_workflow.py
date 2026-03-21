@@ -220,9 +220,7 @@ def test_list_artefacts_invalid_type_raises(mcp_with_artefacts):
 def test_update_index_force_false_raises(mcp_with_tools):
     mcp, _ = mcp_with_tools
     with pytest.raises(PermissionError, match="force=True"):
-        mcp.tools["update_index"](
-            "prd-foo.md", "spec-foo.md", "Foo Feature", "🟢 Done", "❌ Todo"
-        )
+        mcp.tools["update_index"]("prd-foo.md", "spec-foo.md", "Foo Feature", "🟢 Done", "❌ Todo")
 
 
 def test_update_index_force_true_works(mcp_with_tools):

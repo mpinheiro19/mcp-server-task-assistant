@@ -74,9 +74,7 @@ def test_create_spec(mcp_and_tools):
 
 def test_create_plan(mcp_and_tools):
     mcp, dirs = mcp_and_tools
-    result = mcp.tools["create_plan"](
-        "Deploy Pipeline", "spec-deploy-pipeline.prompt.md", "# Plan"
-    )
+    result = mcp.tools["create_plan"]("Deploy Pipeline", "spec-deploy-pipeline.prompt.md", "# Plan")
     assert result["filename"] == "plan-deploy-pipeline.prompt.md"
     assert (dirs["plans"] / "plan-deploy-pipeline.prompt.md").read_text() == "# Plan"
 
