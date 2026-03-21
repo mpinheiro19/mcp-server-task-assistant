@@ -820,7 +820,7 @@ wheels = [
 
 [[package]]
 name = "mcp-assistant"
-version = "0.1.0"
+version = "1.0.0b2"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
