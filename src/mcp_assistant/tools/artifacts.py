@@ -1,4 +1,9 @@
+import logging
 import re
+from typing import Literal
+
+from fastmcp import Context
+from pydantic import BaseModel, Field
 
 from mcp_assistant.config import PLANS_DIR, PRDS_DIR, SPECS_DIR
 from mcp_assistant.tools.workflow import (
@@ -7,6 +12,69 @@ from mcp_assistant.tools.workflow import (
     _update_index,
 )
 from mcp_assistant.utils import _slugify
+
+logger = logging.getLogger(__name__)
+
+
+class IdeaDetails(BaseModel):
+    """Structured details collected during PRD ideation."""
+
+    problem_statement: str = Field(description="Problem this feature solves")
+    target_audience: str = Field(description="Who is the target user/persona")
+    success_metrics: str = Field(description="KPIs/OKRs to measure success")
+    scope_in: str = Field(description="What is in scope")
+    scope_out: str = Field(default="", description="What is explicitly out of scope")
+    priority: Literal["low", "medium", "high"] = Field(
+        default="medium", description="Feature priority"
+    )
+    constraints: str = Field(default="", description="Technical or deadline constraints")
+    dependencies: str = Field(default="", description="Related features or dependencies")
+    acceptance_criteria: str = Field(
+        default="", description="Acceptance Criteria and Definition of Done"
+    )
+    technical_notes: str = Field(
+        default="", description="Entry points, latency targets, offline support"
+    )
+
+
+def _render_prd_draft(feature_name: str, details: IdeaDetails) -> str:
+    """Render a Markdown PRD draft from structured details.
+
+    Args:
+        feature_name: The human-readable name of the feature.
+        details: Structured IdeaDetails collected via elicitation.
+
+    Returns:
+        A Markdown string representing the PRD draft.
+    """
+    scope_out_section = f"\n**Out of Scope:** {details.scope_out}" if details.scope_out else ""
+    constraints_section = (
+        f"\n\n## Constraints\n{details.constraints}" if details.constraints else ""
+    )
+    dependencies_section = (
+        f"\n\n## Dependencies\n{details.dependencies}" if details.dependencies else ""
+    )
+    ac_section = (
+        f"\n\n## Acceptance Criteria\n{details.acceptance_criteria}"
+        if details.acceptance_criteria
+        else ""
+    )
+    tech_section = (
+        f"\n\n## Technical Notes\n{details.technical_notes}" if details.technical_notes else ""
+    )
+
+    return (
+        f"# PRD: {feature_name}\n\n"
+        f"## Problem Statement\n{details.problem_statement}\n\n"
+        f"## Target Audience\n{details.target_audience}\n\n"
+        f"## Success Metrics\n{details.success_metrics}\n\n"
+        f"## Scope\n**In Scope:** {details.scope_in}{scope_out_section}\n\n"
+        f"## Priority\n{details.priority.capitalize()}"
+        f"{constraints_section}"
+        f"{dependencies_section}"
+        f"{ac_section}"
+        f"{tech_section}\n"
+    )
 
 
 def register(mcp) -> None:
@@ -104,3 +172,74 @@ def register(mcp) -> None:
         except Exception as exc:
             result["index_warning"] = str(exc)
         return result
+
+    @mcp.tool()
+    async def ideate_prd(ctx: Context) -> dict:
+        """Guides the user through a pre-PRD ideation journey using elicitation.
+
+        Interactively collects feature details via a three-step elicitation flow:
+        title → duplicate check → structured details form → approval.
+        On approval, automatically creates the PRD file via create_prd.
+
+        Args:
+            ctx: FastMCP context used to send elicitation requests to the client.
+
+        Returns:
+            A dict with keys:
+            - ``saved`` (bool): True if the PRD was created, False otherwise.
+            - ``reason`` (str): Human-readable explanation when saved is False.
+            - ``filename`` (str): Filename of the created PRD (only when saved is True).
+            - ``path`` (str): Absolute path of the created PRD (only when saved is True).
+        """
+        # Step 1 — collect feature title
+        title_result = await ctx.elicit("What is the name/title of the feature?", response_type=str)
+        if title_result.action in ("decline", "cancel"):
+            return {"saved": False, "reason": "Cancelled at title step"}
+
+        feature_name: str = title_result.data  # type: ignore[union-attr]
+
+        # Step 2 — duplicate check (fuzzy, mirrors check_duplicate logic)
+        slug = _slugify(feature_name)
+        tokens = [t for t in slug.split("-") if len(t) >= 4]
+        prd_patterns = [f"prd-{slug}*.md"] + [f"prd-*{t}*.md" for t in tokens]
+        existing_prds: list[str] = []
+        if PRDS_DIR.exists():
+            seen: set = set()
+            for pat in prd_patterns:
+                for p in PRDS_DIR.glob(pat):
+                    if p not in seen:
+                        seen.add(p)
+                        existing_prds.append(p.name)
+
+        if existing_prds:
+            logger.warning(
+                "Duplicate PRD candidates detected for '%s': %s", feature_name, existing_prds
+            )
+            dup_result = await ctx.elicit(
+                f"A PRD similar to '{feature_name}' already exists ({', '.join(existing_prds)}). "
+                "Continue anyway?",
+                response_type=None,
+            )
+            if dup_result.action in ("decline", "cancel"):
+                return {"saved": False, "reason": "Cancelled due to duplicate"}
+
+        # Step 3 — structured details form
+        details_result = await ctx.elicit("Fill in the PRD details:", response_type=IdeaDetails)
+        if details_result.action in ("decline", "cancel"):
+            return {"saved": False, "reason": "Cancelled at details step"}
+
+        details: IdeaDetails = details_result.data  # type: ignore[union-attr]
+        draft = _render_prd_draft(feature_name, details)
+
+        # Step 4 — approval
+        approval_result = await ctx.elicit(
+            f"PRD Draft:\n\n{draft}\n\n---\nSave this PRD?",
+            response_type=None,
+        )
+        if approval_result.action in ("decline", "cancel"):
+            return {"saved": False, "reason": "Cancelled at approval step"}
+
+        # Step 5 — persist
+        logger.info("Saving PRD for feature '%s'", feature_name)
+        prd_result = create_prd(feature_name, draft)
+        return {"saved": True, **prd_result}
