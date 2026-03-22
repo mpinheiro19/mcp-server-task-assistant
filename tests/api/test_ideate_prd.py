@@ -10,6 +10,24 @@ from fastmcp.client.transports import FastMCPTransport
 import mcp_assistant.config as config_module
 import mcp_assistant.tools.artifacts as artifacts_module
 
+_SAMPLE_PRD = """\
+# PRD: Integration Feature
+
+## Problem Statement
+Users lose context when switching tabs
+
+## User Stories
+- As a power user, I want tab state persistence so that I don't lose context.
+
+## Risks & Mitigations
+| Risk | Likelihood | Impact | Mitigation |
+|------|-----------|--------|------------|
+| Data loss | Medium | High | Auto-save |
+
+## Open Questions
+- [ ] What is the max number of tabs to persist?
+"""
+
 
 @pytest.fixture()
 def _mcp_env(tmp_path: Path):
@@ -38,38 +56,89 @@ def _mcp_env(tmp_path: Path):
         yield mcp, {"prds": prds, "specs": specs, "plans": plans, "index": index_file}
 
 
-@pytest.mark.asyncio
-async def test_ideate_prd_happy_path_creates_file(_mcp_env):
-    """Full happy path: title + details answered → PRD file is created on disk immediately."""
-    mcp, dirs = _mcp_env
-    responses = [
-        {"value": "Integration Feature"},  # title (str wrapped as {value: ...})
-        {  # IdeaDetails fields
-            "problem_statement": "Users lose context when switching tabs",
-            "target_audience": "Power users",
-            "success_metrics": "Context restore rate 100%",
-            "scope_in": "Tab state persistence",
-        },
-    ]
+def _make_elicitation_handler(responses):
+    """Build an elicitation handler that returns responses sequentially."""
     call_index = 0
 
-    async def elicitation_handler(message, response_type, params, context):
+    async def handler(message, response_type, params, context):
         nonlocal call_index
         response = responses[call_index]
         call_index += 1
         return response
 
-    async with Client(FastMCPTransport(mcp), elicitation_handler=elicitation_handler) as client:
+    # Expose call_index via a mutable wrapper so tests can assert on it
+    handler.call_count = lambda: call_index
+    return handler
+
+
+_DETAILS_RESPONSE = {
+    "problem_statement": "Users lose context when switching tabs",
+    "target_audience": "Power users",
+    "success_metrics": "Context restore rate 100%",
+    "scope_in": "Tab state persistence",
+    "project_path": "",
+}
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_happy_path_returns_draft(_mcp_env):
+    """Happy path: title + details → LLM sampling → returns draft without saving."""
+    mcp, dirs = _mcp_env
+    elicitation = _make_elicitation_handler([
+        {"value": "Integration Feature"},
+        _DETAILS_RESPONSE,
+    ])
+
+    def sampling_handler(messages, params, context):
+        return _SAMPLE_PRD
+
+    async with Client(
+        FastMCPTransport(mcp),
+        elicitation_handler=elicitation,
+        sampling_handler=sampling_handler,
+    ) as client:
         result = await client.call_tool("ideate_prd", {})
 
-    # call_tool returns a list of content items; extract the text result
     assert result is not None
-    assert call_index == 2, "Exactly 2 elicitation steps: title + details"
-    prd_file = dirs["prds"] / "prd-integration-feature.md"
-    assert prd_file.exists(), "PRD file should have been written to disk"
-    content = prd_file.read_text()
-    assert "# PRD: Integration Feature" in content
-    assert "Users lose context" in content
+    assert result.structured_content is not None
+    sc = result.structured_content
+    assert sc["saved"] is False, "Draft should NOT be persisted automatically"
+    assert sc["sampling_used"] is True
+    assert sc["feature_name"] == "Integration Feature"
+    assert "User Stories" in sc["draft"]
+    assert "Risks" in sc["draft"]
+    assert "Open Questions" in sc["draft"]
+    # No file on disk
+    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_sampling_fallback(_mcp_env):
+    """When LLM sampling fails, the tool falls back to the basic template draft."""
+    mcp, dirs = _mcp_env
+    elicitation = _make_elicitation_handler([
+        {"value": "Fallback Feature"},
+        _DETAILS_RESPONSE,
+    ])
+
+    def sampling_handler(messages, params, context):
+        raise RuntimeError("Sampling not supported")
+
+    async with Client(
+        FastMCPTransport(mcp),
+        elicitation_handler=elicitation,
+        sampling_handler=sampling_handler,
+    ) as client:
+        result = await client.call_tool("ideate_prd", {})
+
+    assert result is not None
+    sc = result.structured_content
+    assert sc["saved"] is False
+    assert sc["sampling_used"] is False
+    assert sc["feature_name"] == "Fallback Feature"
+    # Fallback draft uses _render_prd_draft template
+    assert "# PRD: Fallback Feature" in sc["draft"]
+    assert "Users lose context" in sc["draft"]
 
 
 @pytest.mark.asyncio
@@ -83,9 +152,11 @@ async def test_ideate_prd_cancel_at_title_no_file(_mcp_env):
         return ElicitResult(action="cancel", content=None)
 
     async with Client(FastMCPTransport(mcp), elicitation_handler=elicitation_handler) as client:
-        await client.call_tool("ideate_prd", {})
+        result = await client.call_tool("ideate_prd", {})
 
     assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
+    assert result.structured_content["saved"] is False
+    assert "Cancelled" in result.structured_content["reason"]
 
 
 @pytest.mark.asyncio
@@ -98,25 +169,51 @@ async def test_ideate_prd_duplicate_blocks_creation(_mcp_env):
     dirs["prds"].mkdir(parents=True, exist_ok=True)
     (dirs["prds"] / "prd-dark-mode-legacy.md").write_text("old PRD")
 
-    responses = [
-        {"value": "Dark Mode"},  # title only — no further elicitation after duplicate detected
-    ]
-    call_index = 0
+    elicitation = _make_elicitation_handler([
+        {"value": "Dark Mode"},
+    ])
 
-    async def elicitation_handler(message, response_type, params, context):
-        nonlocal call_index
-        response = responses[call_index]
-        call_index += 1
-        return response
-
-    async with Client(FastMCPTransport(mcp), elicitation_handler=elicitation_handler) as client:
+    async with Client(
+        FastMCPTransport(mcp), elicitation_handler=elicitation
+    ) as client:
         result = await client.call_tool("ideate_prd", {})
 
-    assert call_index == 1, "Only the title elicitation should have fired"
-    # No new PRD should be created (legacy one still exists, no new prd-dark-mode.md)
+    assert elicitation.call_count() == 1, "Only the title elicitation should have fired"
     assert not (dirs["prds"] / "prd-dark-mode.md").exists()
-    # Result should contain the duplicate reason accessible via structured_content
     assert result is not None
     assert result.structured_content is not None
     assert result.structured_content["saved"] is False
     assert "already exists" in result.structured_content["reason"]
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_with_project_path(_mcp_env, tmp_path):
+    """project_path in details is passed to workspace context gathering."""
+    mcp, dirs = _mcp_env
+
+    # Create a fake project with README
+    project = tmp_path / "my-project"
+    project.mkdir()
+    (project / "README.md").write_text("# My Project\nA test project.")
+    (project / "pyproject.toml").write_text('[project]\nname = "my-project"')
+
+    details_with_path = {**_DETAILS_RESPONSE, "project_path": str(project)}
+    elicitation = _make_elicitation_handler([
+        {"value": "Project Feature"},
+        details_with_path,
+    ])
+
+    def sampling_handler(messages, params, context):
+        return _SAMPLE_PRD
+
+    async with Client(
+        FastMCPTransport(mcp),
+        elicitation_handler=elicitation,
+        sampling_handler=sampling_handler,
+    ) as client:
+        result = await client.call_tool("ideate_prd", {})
+
+    sc = result.structured_content
+    assert sc["saved"] is False
+    assert sc["sampling_used"] is True
+    assert sc["feature_name"] == "Project Feature"
