@@ -177,9 +177,12 @@ def register(mcp) -> None:
     async def ideate_prd(ctx: Context) -> dict:
         """Guides the user through a pre-PRD ideation journey using elicitation.
 
-        Interactively collects feature details via a three-step elicitation flow:
-        title → duplicate check → structured details form → approval.
-        On approval, automatically creates the PRD file via create_prd.
+        Interactively collects feature details via a two-step elicitation flow:
+        title → structured details form.  Duplicate detection happens synchronously
+        between the two steps, returning an error rather than an extra elicitation
+        round-trip so the server's elicitation request-ID counter stays below the
+        client's ``tools/call`` request ID and avoids the duplicate-response bug
+        that some MCP clients exhibit when both sides share the same integer ID.
 
         Args:
             ctx: FastMCP context used to send elicitation requests to the client.
@@ -190,15 +193,16 @@ def register(mcp) -> None:
             - ``reason`` (str): Human-readable explanation when saved is False.
             - ``filename`` (str): Filename of the created PRD (only when saved is True).
             - ``path`` (str): Absolute path of the created PRD (only when saved is True).
+            - ``content`` (str): Full Markdown content of the saved PRD (only when saved is True).
         """
-        # Step 1 — collect feature title
+        # Step 1 — collect feature title (elicitation id=0)
         title_result = await ctx.elicit("What is the name/title of the feature?", response_type=str)
         if title_result.action in ("decline", "cancel"):
             return {"saved": False, "reason": "Cancelled at title step"}
 
         feature_name: str = title_result.data  # type: ignore[union-attr]
 
-        # Step 2 — duplicate check (fuzzy, mirrors check_duplicate logic)
+        # Step 2 — synchronous duplicate check (fail-fast, no elicitation round-trip)
         slug = _slugify(feature_name)
         tokens = [t for t in slug.split("-") if len(t) >= 4]
         prd_patterns = [f"prd-{slug}*.md"] + [f"prd-*{t}*.md" for t in tokens]
@@ -215,15 +219,16 @@ def register(mcp) -> None:
             logger.warning(
                 "Duplicate PRD candidates detected for '%s': %s", feature_name, existing_prds
             )
-            dup_result = await ctx.elicit(
-                f"A PRD similar to '{feature_name}' already exists ({', '.join(existing_prds)}). "
-                "Continue anyway?",
-                response_type=None,
-            )
-            if dup_result.action in ("decline", "cancel"):
-                return {"saved": False, "reason": "Cancelled due to duplicate"}
+            return {
+                "saved": False,
+                "reason": (
+                    f"A PRD similar to '{feature_name}' already exists: "
+                    f"{', '.join(existing_prds)}. "
+                    "Review the existing PRD or choose a different feature name."
+                ),
+            }
 
-        # Step 3 — structured details form
+        # Step 3 — structured details form (elicitation id=1)
         details_result = await ctx.elicit("Fill in the PRD details:", response_type=IdeaDetails)
         if details_result.action in ("decline", "cancel"):
             return {"saved": False, "reason": "Cancelled at details step"}
@@ -231,15 +236,7 @@ def register(mcp) -> None:
         details: IdeaDetails = details_result.data  # type: ignore[union-attr]
         draft = _render_prd_draft(feature_name, details)
 
-        # Step 4 — approval
-        approval_result = await ctx.elicit(
-            f"PRD Draft:\n\n{draft}\n\n---\nSave this PRD?",
-            response_type=None,
-        )
-        if approval_result.action in ("decline", "cancel"):
-            return {"saved": False, "reason": "Cancelled at approval step"}
-
-        # Step 5 — persist
+        # Step 4 — persist immediately (no approval elicitation to avoid id=2 collision)
         logger.info("Saving PRD for feature '%s'", feature_name)
         prd_result = create_prd(feature_name, draft)
-        return {"saved": True, **prd_result}
+        return {"saved": True, "content": draft, **prd_result}

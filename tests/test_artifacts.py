@@ -221,8 +221,8 @@ def mock_ctx():
 async def test_ideate_prd_full_flow_saves_prd(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("My New Feature"),  # title
-        _accepted(  # details
+        _accepted("My New Feature"),  # title (id=0)
+        _accepted(  # details (id=1)
             IdeaDetails(
                 problem_statement="A problem",
                 target_audience="Devs",
@@ -230,11 +230,11 @@ async def test_ideate_prd_full_flow_saves_prd(mcp_and_tools, mock_ctx):
                 scope_in="everything",
             )
         ),
-        _accepted({}),  # approval
     ]
     result = await mcp.tools["ideate_prd"](mock_ctx)
     assert result["saved"] is True
     assert result["filename"] == "prd-my-new-feature.md"
+    assert "content" in result, "Draft content must be returned in result"
     assert (dirs["prds"] / "prd-my-new-feature.md").exists()
 
 
@@ -252,8 +252,8 @@ async def test_ideate_prd_cancel_at_title(mcp_and_tools, mock_ctx):
 async def test_ideate_prd_decline_at_details(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("Feature X"),  # title
-        _declined(),  # details
+        _accepted("Feature X"),  # title (id=0)
+        _declined(),  # details (id=1)
     ]
     result = await mcp.tools["ideate_prd"](mock_ctx)
     assert result["saved"] is False
@@ -261,63 +261,19 @@ async def test_ideate_prd_decline_at_details(mcp_and_tools, mock_ctx):
 
 
 @pytest.mark.asyncio
-async def test_ideate_prd_cancel_at_approval(mcp_and_tools, mock_ctx):
+async def test_ideate_prd_duplicate_found_returns_error(mcp_and_tools, mock_ctx):
+    """When a similar PRD exists the tool returns an error after the title step — no extra
+    elicitation round-trip is triggered, keeping the request-ID counter below 2 and
+    avoiding the VS Code tools/call ID collision."""
     mcp, dirs = mcp_and_tools
-    mock_ctx.elicit.side_effect = [
-        _accepted("Feature Y"),
-        _accepted(
-            IdeaDetails(
-                problem_statement="prob",
-                target_audience="users",
-                success_metrics="m",
-                scope_in="s",
-            )
-        ),
-        _cancelled(),  # approval
-    ]
-    result = await mcp.tools["ideate_prd"](mock_ctx)
-    assert result["saved"] is False
-    assert "approval" in result["reason"].lower()
-    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
-
-
-@pytest.mark.asyncio
-async def test_ideate_prd_duplicate_found_user_continues(mcp_and_tools, mock_ctx):
-    """When a similar (but not identical) PRD exists, user accepts → new PRD saved."""
-    mcp, dirs = mcp_and_tools
-    # Create a related PRD (similar slug tokens) but with a different exact name
+    # Create a related PRD (similar slug tokens)
     dirs["prds"].mkdir(parents=True, exist_ok=True)
     (dirs["prds"] / "prd-dark-mode-beta.md").write_text("existing")
 
     mock_ctx.elicit.side_effect = [
-        _accepted("Dark Mode"),  # title
-        _accepted({}),  # continue despite duplicate warning
-        _accepted(  # details
-            IdeaDetails(
-                problem_statement="dark theme",
-                target_audience="users",
-                success_metrics="adoption",
-                scope_in="UI",
-            )
-        ),
-        _accepted({}),  # approval
-    ]
-    result = await mcp.tools["ideate_prd"](mock_ctx)
-    assert result["saved"] is True
-    assert result["filename"] == "prd-dark-mode.md"
-
-
-@pytest.mark.asyncio
-async def test_ideate_prd_duplicate_found_user_cancels(mcp_and_tools, mock_ctx):
-    """When a similar PRD exists and user cancels the warning prompt, no file is saved."""
-    mcp, dirs = mcp_and_tools
-    dirs["prds"].mkdir(parents=True, exist_ok=True)
-    (dirs["prds"] / "prd-dark-mode-old.md").write_text("existing")
-
-    mock_ctx.elicit.side_effect = [
-        _accepted("Dark Mode"),  # title
-        _cancelled(),  # cancel at duplicate warning
+        _accepted("Dark Mode"),  # title (id=0) — only elicitation that fires
     ]
     result = await mcp.tools["ideate_prd"](mock_ctx)
     assert result["saved"] is False
-    assert "duplicate" in result["reason"].lower()
+    assert "already exists" in result["reason"]
+    assert mock_ctx.elicit.call_count == 1, "No additional elicitation after duplicate detected"

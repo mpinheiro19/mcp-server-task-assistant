@@ -40,7 +40,7 @@ def _mcp_env(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_ideate_prd_happy_path_creates_file(_mcp_env):
-    """Full happy path: all elicitations answered → PRD file is created on disk."""
+    """Full happy path: title + details answered → PRD file is created on disk immediately."""
     mcp, dirs = _mcp_env
     responses = [
         {"value": "Integration Feature"},  # title (str wrapped as {value: ...})
@@ -50,7 +50,6 @@ async def test_ideate_prd_happy_path_creates_file(_mcp_env):
             "success_metrics": "Context restore rate 100%",
             "scope_in": "Tab state persistence",
         },
-        {},  # approval (None response_type → empty dict)
     ]
     call_index = 0
 
@@ -65,7 +64,7 @@ async def test_ideate_prd_happy_path_creates_file(_mcp_env):
 
     # call_tool returns a list of content items; extract the text result
     assert result is not None
-    assert call_index == 3
+    assert call_index == 2, "Exactly 2 elicitation steps: title + details"
     prd_file = dirs["prds"] / "prd-integration-feature.md"
     assert prd_file.exists(), "PRD file should have been written to disk"
     content = prd_file.read_text()
@@ -90,23 +89,17 @@ async def test_ideate_prd_cancel_at_title_no_file(_mcp_env):
 
 
 @pytest.mark.asyncio
-async def test_ideate_prd_duplicate_warning_shown_and_user_continues(_mcp_env):
-    """When a fuzzy-matching PRD exists, the warning elicitation is fired; accepting continues."""
+async def test_ideate_prd_duplicate_blocks_creation(_mcp_env):
+    """When a fuzzy-matching PRD exists, the tool returns an error immediately without prompting
+    for extra elicitation — this prevents the id-collision bug where VS Code assigns the same
+    integer ID to both the tools/call request and an elicitation request."""
     mcp, dirs = _mcp_env
     # Pre-create a related PRD
     dirs["prds"].mkdir(parents=True, exist_ok=True)
     (dirs["prds"] / "prd-dark-mode-legacy.md").write_text("old PRD")
 
     responses = [
-        {"value": "Dark Mode"},  # title
-        {},  # accept duplicate warning
-        {  # details
-            "problem_statement": "Users want dark theme",
-            "target_audience": "All users",
-            "success_metrics": "50% activation",
-            "scope_in": "UI theming",
-        },
-        {},  # approval
+        {"value": "Dark Mode"},  # title only — no further elicitation after duplicate detected
     ]
     call_index = 0
 
@@ -117,7 +110,13 @@ async def test_ideate_prd_duplicate_warning_shown_and_user_continues(_mcp_env):
         return response
 
     async with Client(FastMCPTransport(mcp), elicitation_handler=elicitation_handler) as client:
-        await client.call_tool("ideate_prd", {})
+        result = await client.call_tool("ideate_prd", {})
 
-    assert call_index == 4, "All 4 elicitation steps should have fired"
-    assert (dirs["prds"] / "prd-dark-mode.md").exists()
+    assert call_index == 1, "Only the title elicitation should have fired"
+    # No new PRD should be created (legacy one still exists, no new prd-dark-mode.md)
+    assert not (dirs["prds"] / "prd-dark-mode.md").exists()
+    # Result should contain the duplicate reason accessible via structured_content
+    assert result is not None
+    assert result.structured_content is not None
+    assert result.structured_content["saved"] is False
+    assert "already exists" in result.structured_content["reason"]
