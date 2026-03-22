@@ -35,6 +35,9 @@ class IdeaDetails(BaseModel):
     technical_notes: str = Field(
         default="", description="Entry points, latency targets, offline support"
     )
+    project_path: str = Field(
+        default="", description="Path to the project repository (default: current workspace)"
+    )
 
 
 def _render_prd_draft(feature_name: str, details: IdeaDetails) -> str:
