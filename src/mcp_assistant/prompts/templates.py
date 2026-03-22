@@ -9,33 +9,82 @@ from mcp_assistant.config import (
     SPECS_DIR,
 )
 
+_PRD_SECTIONS_INSTRUCTION = """\
+You are a senior product manager. Generate a comprehensive PRD in Markdown with \
+the following sections (use these exact headings):
+
+## Problem Statement
+## Target Audience
+## Success Metrics
+## Scope
+Include **In Scope** and **Out of Scope** sub-items.
+## Priority
+## User Stories
+List items as "As a <persona>, I want <goal> so that <benefit>."
+## Technical Impact Analysis
+## Architecture / Design Suggestions
+## Risks & Mitigations
+Use a Markdown table with columns: Risk | Likelihood | Impact | Mitigation.
+## Dependencies
+## Constraints
+## Acceptance Criteria
+## Open Questions
+Use a checklist (- [ ] …) for items that still need answers.
+## Technical Notes
+
+Generate ONLY the PRD Markdown content. Do NOT call any tool — \
+the caller is responsible for persistence.\
+"""
+
+
+def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
+    """Build a prompt string for LLM-based PRD generation.
+
+    This is used by both the ``prd_from_idea`` MCP prompt and the
+    ``ideate_prd`` tool (via ``ctx.sample()``).
+
+    Args:
+        idea_str: Free-form or structured description of the idea.
+        codebase_context: Optional workspace context (structure, README, config).
+
+    Returns:
+        A single prompt string ready to be sent to ``ctx.sample()``
+        or included in a ``Message``.
+    """
+    governance = ""
+    if COPILOT_INSTRUCTIONS.exists():
+        governance = COPILOT_INSTRUCTIONS.read_text()
+
+    index_content = INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md does not exist yet."
+
+    parts = [_PRD_SECTIONS_INSTRUCTION]
+    if governance:
+        parts.append(f"# GOVERNANCE PROTOCOL\n{governance}")
+    if codebase_context:
+        parts.append(f"# CODEBASE CONTEXT\n{codebase_context}")
+    parts.append(f"# Current Index Status\n\n{index_content}")
+    parts.append(f"# New Idea\n\n{idea_str}")
+    parts.append("Please generate the corresponding PRD following the instructions above.")
+
+    return "\n\n---\n\n".join(parts)
+
 
 def register(mcp) -> None:
     @mcp.prompt()
     def prd_from_idea(idea: str) -> list[Message]:
         """Generates prompt to create a PRD from an idea, injecting governance protocol and index state."""
-        protocol = COPILOT_INSTRUCTIONS.read_text() if COPILOT_INSTRUCTIONS.exists() else ""
-        index_content = (
-            INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md does not exist yet."
-        )
-        prd_prompt_template = (
-            (SPEC_ASSISTANT_DIR / "prd-prompt.md").read_text()
-            if (SPEC_ASSISTANT_DIR / "prd-prompt.md").exists()
-            else ""
-        )
+        prompt_text = _build_prd_prompt(idea)
 
-        system_content = f"{prd_prompt_template}\n\n---\n\n# GOVERNANCE PROTOCOL\n{protocol}"
+        # The prompt variant tells the LLM to call create_prd after generating content.
         user_content = (
-            f"# Current Index Status\n\n{index_content}\n\n"
-            f"---\n\n# New Idea\n\n{idea}\n\n"
-            "Please generate the corresponding PRD following the protocol above.\n\n"
+            f"{prompt_text}\n\n"
             "**IMPORTANT:** After generating the PRD content, call the MCP tool "
             "`create_prd(feature_name, content)` to persist the file and register "
             "it automatically in index.md. Do not write the file directly to the filesystem."
         )
 
         return [
-            Message(role="user", content=system_content + "\n\n" + user_content),
+            Message(role="user", content=user_content),
         ]
 
     @mcp.prompt()
