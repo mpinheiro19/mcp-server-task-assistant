@@ -84,10 +84,12 @@ _DETAILS_RESPONSE = {
 async def test_ideate_prd_happy_path_returns_draft(_mcp_env):
     """Happy path: title + details → LLM sampling → returns draft without saving."""
     mcp, dirs = _mcp_env
-    elicitation = _make_elicitation_handler([
-        {"value": "Integration Feature"},
-        _DETAILS_RESPONSE,
-    ])
+    elicitation = _make_elicitation_handler(
+        [
+            {"value": "Integration Feature"},
+            _DETAILS_RESPONSE,
+        ]
+    )
 
     def sampling_handler(messages, params, context):
         return _SAMPLE_PRD
@@ -116,10 +118,12 @@ async def test_ideate_prd_happy_path_returns_draft(_mcp_env):
 async def test_ideate_prd_sampling_fallback(_mcp_env):
     """When LLM sampling fails, the tool falls back to the basic template draft."""
     mcp, dirs = _mcp_env
-    elicitation = _make_elicitation_handler([
-        {"value": "Fallback Feature"},
-        _DETAILS_RESPONSE,
-    ])
+    elicitation = _make_elicitation_handler(
+        [
+            {"value": "Fallback Feature"},
+            _DETAILS_RESPONSE,
+        ]
+    )
 
     def sampling_handler(messages, params, context):
         raise RuntimeError("Sampling not supported")
@@ -169,13 +173,13 @@ async def test_ideate_prd_duplicate_blocks_creation(_mcp_env):
     dirs["prds"].mkdir(parents=True, exist_ok=True)
     (dirs["prds"] / "prd-dark-mode-legacy.md").write_text("old PRD")
 
-    elicitation = _make_elicitation_handler([
-        {"value": "Dark Mode"},
-    ])
+    elicitation = _make_elicitation_handler(
+        [
+            {"value": "Dark Mode"},
+        ]
+    )
 
-    async with Client(
-        FastMCPTransport(mcp), elicitation_handler=elicitation
-    ) as client:
+    async with Client(FastMCPTransport(mcp), elicitation_handler=elicitation) as client:
         result = await client.call_tool("ideate_prd", {})
 
     assert elicitation.call_count() == 1, "Only the title elicitation should have fired"
@@ -198,10 +202,12 @@ async def test_ideate_prd_with_project_path(_mcp_env, tmp_path):
     (project / "pyproject.toml").write_text('[project]\nname = "my-project"')
 
     details_with_path = {**_DETAILS_RESPONSE, "project_path": str(project)}
-    elicitation = _make_elicitation_handler([
-        {"value": "Project Feature"},
-        details_with_path,
-    ])
+    elicitation = _make_elicitation_handler(
+        [
+            {"value": "Project Feature"},
+            details_with_path,
+        ]
+    )
 
     def sampling_handler(messages, params, context):
         return _SAMPLE_PRD
