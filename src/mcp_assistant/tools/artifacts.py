@@ -189,19 +189,22 @@ def register(mcp) -> None:
         If the client does not support MCP sampling, falls back to a basic
         template-based PRD draft.
 
-        The elaborated draft is returned in the tool payload (not persisted
-        automatically) so the orchestrating LLM can present it for approval
-        and call ``create_prd`` when the user confirms.
+        The elaborated draft is automatically persisted as a PRD file when no
+        duplicate is detected.  On duplicate, returns ``saved=False`` with a
+        ``reason`` so the orchestrating LLM can inform the user.
 
         Args:
             ctx: FastMCP context used to send elicitation and sampling requests.
 
         Returns:
             A dict with keys:
-            - ``saved`` (bool): Always False — draft requires user approval.
-            - ``draft`` (str): Full Markdown PRD draft for the LLM to present.
-            - ``feature_name`` (str): The feature title for use with ``create_prd``.
+            - ``saved`` (bool): True when the PRD was persisted; False on conflict/cancel.
+            - ``draft`` (str): Full Markdown PRD draft for the LLM to present to the user.
+            - ``filename`` (str): Created file name (only when ``saved=True``).
+            - ``path`` (str): Absolute path to the created file (only when ``saved=True``).
+            - ``feature_name`` (str): The feature title.
             - ``sampling_used`` (bool): Whether LLM sampling was used.
+            - ``reason`` (str): Explains why the PRD was not saved (only when ``saved=False``).
         """
         # Step 1 — collect feature title (elicitation id=0)
         title_result = await ctx.elicit("What is the name/title of the feature?", response_type=str)
@@ -284,11 +287,24 @@ def register(mcp) -> None:
             )
             draft = _render_prd_draft(feature_name, details)
 
-        # Return draft without persisting — LLM presents to user for approval,
-        # then calls create_prd(feature_name, content) if approved.
-        return {
-            "saved": False,
+        # Persist the PRD automatically — no duplicate detected at this point.
+        slug = _slugify(feature_name)
+        filename = f"prd-{slug}.md"
+        prd_path = PRDS_DIR / filename
+        PRDS_DIR.mkdir(parents=True, exist_ok=True)
+        prd_path.write_text(draft)
+        logger.info("PRD '%s' auto-saved to '%s'", feature_name, prd_path)
+
+        result: dict = {
+            "saved": True,
             "draft": draft,
+            "filename": filename,
+            "path": str(prd_path),
             "feature_name": feature_name,
             "sampling_used": sampling_used,
         }
+        try:
+            _update_index(filename, "", feature_name, "⏳ Waiting for Spec", "❌ Todo")
+        except Exception as exc:
+            result["index_warning"] = str(exc)
+        return result

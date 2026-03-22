@@ -104,14 +104,16 @@ async def test_ideate_prd_happy_path_returns_draft(_mcp_env):
     assert result is not None
     assert result.structured_content is not None
     sc = result.structured_content
-    assert sc["saved"] is False, "Draft should NOT be persisted automatically"
+    assert sc["saved"] is True, "Draft should be auto-saved when no duplicate exists"
     assert sc["sampling_used"] is True
     assert sc["feature_name"] == "Integration Feature"
+    assert "filename" in sc
+    assert "path" in sc
     assert "User Stories" in sc["draft"]
     assert "Risks" in sc["draft"]
     assert "Open Questions" in sc["draft"]
-    # No file on disk
-    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
+    # File must exist on disk
+    assert dirs["prds"].exists() and list(dirs["prds"].glob("*.md"))
 
 
 @pytest.mark.asyncio
@@ -137,12 +139,16 @@ async def test_ideate_prd_sampling_fallback(_mcp_env):
 
     assert result is not None
     sc = result.structured_content
-    assert sc["saved"] is False
+    assert sc["saved"] is True
     assert sc["sampling_used"] is False
     assert sc["feature_name"] == "Fallback Feature"
+    assert "filename" in sc
+    assert "path" in sc
     # Fallback draft uses _render_prd_draft template
     assert "# PRD: Fallback Feature" in sc["draft"]
     assert "Users lose context" in sc["draft"]
+    # File must exist on disk
+    assert dirs["prds"].exists() and list(dirs["prds"].glob("*.md"))
 
 
 @pytest.mark.asyncio
@@ -220,6 +226,8 @@ async def test_ideate_prd_with_project_path(_mcp_env, tmp_path):
         result = await client.call_tool("ideate_prd", {})
 
     sc = result.structured_content
-    assert sc["saved"] is False
+    assert sc["saved"] is True
     assert sc["sampling_used"] is True
     assert sc["feature_name"] == "Project Feature"
+    assert "filename" in sc
+    assert dirs["prds"].exists() and list(dirs["prds"].glob("*.md"))
