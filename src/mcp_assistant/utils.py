@@ -63,9 +63,7 @@ def _gather_workspace_context(project_path: str = "") -> str:
     # Top-level listing (no recursion)
     try:
         entries = sorted(root.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
-        listing = "\n".join(
-            f"{'📁 ' if e.is_dir() else '📄 '}{e.name}" for e in entries
-        )
+        listing = "\n".join(f"{'📁 ' if e.is_dir() else '📄 '}{e.name}" for e in entries)
         sections.append(f"## Project Structure\n```\n{listing}\n```")
     except OSError:
         pass
