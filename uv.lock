@@ -786,7 +786,7 @@ wheels = [
 
 [[package]]
 name = "mcp-assistant"
-version = "1.0.0b2"
+version = "1.1.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

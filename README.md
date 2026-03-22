@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 [![codecov](https://codecov.io/gh/mpinheiro19/mcp-server-task-assistant/branch/main/graph/badge.svg)](https://codecov.io/gh/mpinheiro19/mcp-server-task-assistant)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-![Pre-release](https://img.shields.io/github/v/release/mpinheiro19/mcp-server-task-assistant?include_prereleases&label=pre-release)
+![Pre-release](https://img.shields.io/badge/pre--release-1.1.0b1-blue)
 
 MCP server that manages the **PRD → Spec → Plan** artifact lifecycle for software projects.
 Exposes tools, resources, and prompt templates consumed by Claude Code, Cursor, and VS Code Copilot via STDIO transport.
