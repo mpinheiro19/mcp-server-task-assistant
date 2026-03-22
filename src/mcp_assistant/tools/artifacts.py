@@ -6,12 +6,13 @@ from fastmcp import Context
 from pydantic import BaseModel, Field
 
 from mcp_assistant.config import PLANS_DIR, PRDS_DIR, SPECS_DIR
+from mcp_assistant.prompts.templates import _build_prd_prompt
 from mcp_assistant.tools.workflow import (
     _get_index_row_by_prd,
     _get_index_row_by_spec,
     _update_index,
 )
-from mcp_assistant.utils import _slugify
+from mcp_assistant.utils import _gather_workspace_context, _slugify
 
 logger = logging.getLogger(__name__)
 
@@ -178,25 +179,29 @@ def register(mcp) -> None:
 
     @mcp.tool()
     async def ideate_prd(ctx: Context) -> dict:
-        """Guides the user through a pre-PRD ideation journey using elicitation.
+        """Guides the user through a pre-PRD ideation journey using elicitation and LLM sampling.
 
         Interactively collects feature details via a two-step elicitation flow:
-        title → structured details form.  Duplicate detection happens synchronously
-        between the two steps, returning an error rather than an extra elicitation
-        round-trip so the server's elicitation request-ID counter stays below the
-        client's ``tools/call`` request ID and avoids the duplicate-response bug
-        that some MCP clients exhibit when both sides share the same integer ID.
+        title → structured details form.  Then gathers workspace context and uses
+        ``ctx.sample()`` to have the LLM generate an elaborated PRD draft with
+        User Stories, Risks, Architecture suggestions and Open Questions.
+
+        If the client does not support MCP sampling, falls back to a basic
+        template-based PRD draft.
+
+        The elaborated draft is returned in the tool payload (not persisted
+        automatically) so the orchestrating LLM can present it for approval
+        and call ``create_prd`` when the user confirms.
 
         Args:
-            ctx: FastMCP context used to send elicitation requests to the client.
+            ctx: FastMCP context used to send elicitation and sampling requests.
 
         Returns:
             A dict with keys:
-            - ``saved`` (bool): True if the PRD was created, False otherwise.
-            - ``reason`` (str): Human-readable explanation when saved is False.
-            - ``filename`` (str): Filename of the created PRD (only when saved is True).
-            - ``path`` (str): Absolute path of the created PRD (only when saved is True).
-            - ``content`` (str): Full Markdown content of the saved PRD (only when saved is True).
+            - ``saved`` (bool): Always False — draft requires user approval.
+            - ``draft`` (str): Full Markdown PRD draft for the LLM to present.
+            - ``feature_name`` (str): The feature title for use with ``create_prd``.
+            - ``sampling_used`` (bool): Whether LLM sampling was used.
         """
         # Step 1 — collect feature title (elicitation id=0)
         title_result = await ctx.elicit("What is the name/title of the feature?", response_type=str)
@@ -237,9 +242,53 @@ def register(mcp) -> None:
             return {"saved": False, "reason": "Cancelled at details step"}
 
         details: IdeaDetails = details_result.data  # type: ignore[union-attr]
-        draft = _render_prd_draft(feature_name, details)
 
-        # Step 4 — persist immediately (no approval elicitation to avoid id=2 collision)
-        logger.info("Saving PRD for feature '%s'", feature_name)
-        prd_result = create_prd(feature_name, draft)
-        return {"saved": True, "content": draft, **prd_result}
+        # Step 4 — gather workspace context
+        codebase_context = _gather_workspace_context(details.project_path)
+
+        # Step 5 — build rich idea description from all IdeaDetails fields
+        idea_parts = [
+            f"# {feature_name}",
+            f"**Problem Statement:** {details.problem_statement}",
+            f"**Target Audience:** {details.target_audience}",
+            f"**Success Metrics:** {details.success_metrics}",
+            f"**In Scope:** {details.scope_in}",
+        ]
+        if details.scope_out:
+            idea_parts.append(f"**Out of Scope:** {details.scope_out}")
+        idea_parts.append(f"**Priority:** {details.priority}")
+        if details.constraints:
+            idea_parts.append(f"**Constraints:** {details.constraints}")
+        if details.dependencies:
+            idea_parts.append(f"**Dependencies:** {details.dependencies}")
+        if details.acceptance_criteria:
+            idea_parts.append(f"**Acceptance Criteria:** {details.acceptance_criteria}")
+        if details.technical_notes:
+            idea_parts.append(f"**Technical Notes:** {details.technical_notes}")
+        idea_str = "\n\n".join(idea_parts)
+
+        prompt = _build_prd_prompt(idea_str, codebase_context)
+
+        # Step 6 — LLM sampling with fallback to basic template
+        sampling_used = False
+        try:
+            sample_result = await ctx.sample(prompt, max_tokens=4096)
+            draft = sample_result.text or _render_prd_draft(feature_name, details)
+            sampling_used = True
+            logger.info("PRD draft generated via LLM sampling for '%s'", feature_name)
+        except Exception as exc:
+            logger.warning(
+                "LLM sampling failed for '%s', using template fallback: %s",
+                feature_name,
+                exc,
+            )
+            draft = _render_prd_draft(feature_name, details)
+
+        # Return draft without persisting — LLM presents to user for approval,
+        # then calls create_prd(feature_name, content) if approved.
+        return {
+            "saved": False,
+            "draft": draft,
+            "feature_name": feature_name,
+            "sampling_used": sampling_used,
+        }
