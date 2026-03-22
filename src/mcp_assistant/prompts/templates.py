@@ -55,7 +55,9 @@ def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
     if COPILOT_INSTRUCTIONS.exists():
         governance = COPILOT_INSTRUCTIONS.read_text()
 
-    index_content = INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md does not exist yet."
+    index_content = (
+        INDEX_FILE.read_text() if INDEX_FILE.exists() else "index.md does not exist yet."
+    )
 
     parts = [_PRD_SECTIONS_INSTRUCTION]
     if governance:
