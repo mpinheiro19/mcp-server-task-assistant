@@ -214,11 +214,12 @@ def _declined():
 def mock_ctx():
     ctx = MagicMock()
     ctx.elicit = AsyncMock()
+    ctx.sample = AsyncMock()
     return ctx
 
 
 @pytest.mark.asyncio
-async def test_ideate_prd_full_flow_saves_prd(mcp_and_tools, mock_ctx):
+async def test_ideate_prd_full_flow_returns_draft(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
         _accepted("My New Feature"),  # title (id=0)
@@ -231,11 +232,16 @@ async def test_ideate_prd_full_flow_saves_prd(mcp_and_tools, mock_ctx):
             )
         ),
     ]
+    sample_result = MagicMock()
+    sample_result.text = "# PRD: My New Feature\n\n## User Stories\n- As a dev...\n\n## Risks & Mitigations\n...\n\n## Open Questions\n- [ ] TBD"
+    mock_ctx.sample.return_value = sample_result
     result = await mcp.tools["ideate_prd"](mock_ctx)
-    assert result["saved"] is True
-    assert result["filename"] == "prd-my-new-feature.md"
-    assert "content" in result, "Draft content must be returned in result"
-    assert (dirs["prds"] / "prd-my-new-feature.md").exists()
+    assert result["saved"] is False, "Draft should not be auto-saved"
+    assert result["feature_name"] == "My New Feature"
+    assert result["sampling_used"] is True
+    assert "draft" in result
+    # No file on disk — draft requires user approval via create_prd
+    assert not dirs["prds"].exists() or not list(dirs["prds"].glob("*.md"))
 
 
 @pytest.mark.asyncio
