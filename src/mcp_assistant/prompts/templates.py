@@ -2,6 +2,7 @@ from fastmcp.prompts import Message
 
 from mcp_assistant.config import (
     COPILOT_INSTRUCTIONS,
+    ELICITATIONS_DIR,
     INDEX_FILE,
     PLANS_DIR,
     PRDS_DIR,
@@ -37,7 +38,9 @@ the caller is responsible for persistence.\
 """
 
 
-def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
+def _build_prd_prompt(
+    idea_str: str, codebase_context: str = "", enriched_context: str = ""
+) -> str:
     """Build a prompt string for LLM-based PRD generation.
 
     This is used by both the ``prd_from_idea`` MCP prompt and the
@@ -46,6 +49,8 @@ def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
     Args:
         idea_str: Free-form or structured description of the idea.
         codebase_context: Optional workspace context (structure, README, config).
+        enriched_context: Optional enriched architectural context from
+            consolidate_technical_context. Takes precedence over codebase_context.
 
     Returns:
         A single prompt string ready to be sent to ``ctx.sample()``
@@ -62,7 +67,9 @@ def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
     parts = [_PRD_SECTIONS_INSTRUCTION]
     if governance:
         parts.append(f"# GOVERNANCE PROTOCOL\n{governance}")
-    if codebase_context:
+    if enriched_context:
+        parts.append(f"# ENRICHED ARCHITECTURAL CONTEXT\n{enriched_context}")
+    elif codebase_context:
         parts.append(f"# CODEBASE CONTEXT\n{codebase_context}")
     parts.append(f"# Current Index Status\n\n{index_content}")
     parts.append(f"# New Idea\n\n{idea_str}")
@@ -73,9 +80,31 @@ def _build_prd_prompt(idea_str: str, codebase_context: str = "") -> str:
 
 def register(mcp) -> None:
     @mcp.prompt()
-    def prd_from_idea(idea: str) -> list[Message]:
-        """Generates prompt to create a PRD from an idea, injecting governance protocol and index state."""
-        prompt_text = _build_prd_prompt(idea)
+    def prd_from_idea(idea: str, context_filename: str | None = None) -> list[Message]:
+        """Generates prompt to create a PRD from an idea, injecting governance protocol and index state.
+
+        If context_filename is provided, injects the enriched technical context
+        (produced by consolidate_technical_context) into the prompt, replacing
+        the generic codebase context section.
+
+        Args:
+            idea: Free-text description of the feature idea.
+            context_filename: Optional filename of a context-{slug}.md artifact
+                in ELICITATIONS_DIR. When provided, must exist.
+        """
+        enriched_context = ""
+        if context_filename is not None:
+            context_path = ELICITATIONS_DIR / context_filename
+            if not context_path.resolve().is_relative_to(ELICITATIONS_DIR.resolve()):
+                raise ValueError(f"Invalid context_filename: '{context_filename}'")
+            if not context_path.exists():
+                raise FileNotFoundError(
+                    f"Context file not found: '{context_filename}'. "
+                    "Run consolidate_technical_context first."
+                )
+            enriched_context = context_path.read_text(encoding="utf-8")
+
+        prompt_text = _build_prd_prompt(idea, enriched_context=enriched_context)
 
         # The prompt variant tells the LLM to call create_prd after generating content.
         user_content = (

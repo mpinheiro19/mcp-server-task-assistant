@@ -2,7 +2,7 @@
 
 ## Overview
 
-`mcp-assistant` is a Model Context Protocol (MCP) server that manages the **PRD → Spec → Plan** artifact lifecycle for software projects. It exposes tools, resources, and prompt templates consumed by MCP-compatible clients (Claude Code, Cursor, VS Code Copilot).
+`mcp-assistant` is a Model Context Protocol (MCP) server that manages the **Elicitation → PRD → Spec → Plan** artifact lifecycle for software projects. It exposes tools, resources, and prompt templates consumed by MCP-compatible clients (Claude Code, Cursor, VS Code Copilot).
 
 Transport is **STDIO only** — the server is spawned as a subprocess by the client and communicates over stdin/stdout.
 
@@ -14,10 +14,12 @@ Transport is **STDIO only** — the server is spawned as a subprocess by the cli
 src/mcp_assistant/
 ├── server.py          Entry point. Instantiates FastMCP and wires all modules.
 ├── config.py          Centralized path constants. Reads ASSISTANT_FLOW_ROOT env var.
-├── utils.py           Pure helper functions (_slugify, _parse_index_table).
+├── utils.py           Pure helper functions (_slugify, _parse_index_table, _gather_workspace_context).
 ├── tools/
-│   ├── artifacts.py   Artifact creation tools (create_prd, create_spec, create_plan).
-│   └── workflow.py    Workflow management tools (check_duplicate, advance_stage, …).
+│   ├── artifacts.py   Artifact creation tools (create_prd, create_spec, create_plan, ideate_prd).
+│   ├── elicitation.py Pre-PRD elicitation tools (map_repository_context, run_expert_elicitation,
+│   │                  consolidate_technical_context).
+│   └── workflow.py    Workflow management tools (check_duplicate, advance_stage, sync_index, …).
 ├── resources/
 │   └── flow.py        Read-only resources exposing filesystem state as flow://* URIs.
 └── prompts/
@@ -35,6 +37,7 @@ Each module exposes a single `register(mcp: FastMCP) -> None` function. `server.
 mcp = FastMCP(name="AssistantFlowServer", instructions="…")
 
 artifacts.register(mcp)
+elicitation.register(mcp)
 workflow.register(mcp)
 flow.register(mcp)
 templates.register(mcp)
@@ -55,7 +58,11 @@ copilot-assistants/
 ├── spec-driven-assistant/     Prompt templates on disk
 ├── prds/                      prd-<slug>.md
 ├── specs/                     spec-<prd-slug>-<feature-slug>.md
-└── plans/                     plan-<slug>.prompt.md
+├── plans/                     plan-<slug>.prompt.md
+└── elicitations/              Pre-PRD elicitation artifacts
+    ├── index.md               Elicitation status tracker
+    ├── elicitation-<slug>.md  Open questions for developer to answer
+    └── context-<slug>.md      Consolidated technical context (YAML frontmatter + Markdown)
 ```
 
 `config.py` exposes `Path` constants for every directory/file. The root can be overridden via the `ASSISTANT_FLOW_ROOT` environment variable, making the server portable across machines.
@@ -86,12 +93,12 @@ Examples:
 `index.md` tracks the status of every feature as a Markdown table:
 
 ```markdown
-| PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |
-| :--- | :--- | :--- | :--- | :--- |
-| prd-auth.md | spec-auth-login.md | Login Flow | 🟢 Done | ✅ Concluído |
+| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| prd-auth.md | spec-auth-login.md | Login Flow | 🟢 Done | ✅ Consolidated | ✅ Concluído |
 ```
 
-`_parse_index_table()` parses this into a list of dicts. Tools that update it operate line-by-line to preserve all formatting outside the target row.
+`_parse_index_table()` parses this into a list of dicts. The schema migrated from 5 columns (no Elicitation column) to 6 columns in this version; `_migrate_index_header_if_needed()` upgrades existing tables transparently. Tools that update the table operate line-by-line to preserve all formatting outside the target row.
 
 ---
 

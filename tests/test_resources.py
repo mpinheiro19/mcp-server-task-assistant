@@ -107,10 +107,10 @@ def test_get_prds_empty_when_dir_missing(mcp_and_dirs):
 def test_get_prds_lists_md_files(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
     dirs["prds"].mkdir()
-    (dirs["prds"] / "prd-foo.md").write_text("x")
-    (dirs["prds"] / "prd-bar.md").write_text("x")
+    (dirs["prds"] / "foo.md").write_text("x")
+    (dirs["prds"] / "bar.md").write_text("x")
     result = json.loads(mcp.resources["flow://prds"]())
-    assert result == ["prd-bar.md", "prd-foo.md"]
+    assert result == ["bar.md", "foo.md"]
 
 
 def test_get_specs_empty_when_dir_missing(mcp_and_dirs):
@@ -126,9 +126,9 @@ def test_get_plans_empty_when_dir_missing(mcp_and_dirs):
 def test_get_plans_lists_files(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
     dirs["plans"].mkdir()
-    (dirs["plans"] / "plan-abc.md").write_text("x")
+    (dirs["plans"] / "abc.md").write_text("x")
     result = json.loads(mcp.resources["flow://plans"]())
-    assert result == ["plan-abc.md"]
+    assert result == ["abc.md"]
 
 
 # --- flow://prd/{filename}, flow://spec/{filename}, flow://plan/{filename} ---
@@ -137,37 +137,38 @@ def test_get_plans_lists_files(mcp_and_dirs):
 def test_get_prd_returns_content(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
     dirs["prds"].mkdir()
-    (dirs["prds"] / "prd-foo.md").write_text("# PRD Foo")
-    assert mcp.resources["flow://prd/{filename}"]("prd-foo.md") == "# PRD Foo"
+    (dirs["prds"] / "foo.md").write_text("# PRD Foo")
+    assert mcp.resources["flow://prd/{filename}"]("foo.md") == "# PRD Foo"
 
 
 def test_get_prd_missing_raises(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
     with pytest.raises(ValueError, match="not found"):
-        mcp.resources["flow://prd/{filename}"]("prd-missing.md")
+        mcp.resources["flow://prd/{filename}"]("missing.md")
 
 
 def test_get_spec_returns_content(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
-    dirs["specs"].mkdir()
-    (dirs["specs"] / "spec-foo.md").write_text("# Spec Foo")
-    assert mcp.resources["flow://spec/{filename}"]("spec-foo.md") == "# Spec Foo"
+    (dirs["specs"] / "prd-slug").mkdir(parents=True)
+    (dirs["specs"] / "prd-slug" / "spec-foo.md").write_text("# Spec Foo")
+    assert mcp.resources["flow://spec/{prd_slug}/{spec_name}"]("prd-slug", "spec-foo.md") == "# Spec Foo"
 
 
 def test_get_spec_missing_raises(mcp_and_dirs):
-    mcp, _ = mcp_and_dirs
+    mcp, dirs = mcp_and_dirs
+    dirs["specs"].mkdir()
     with pytest.raises(ValueError, match="not found"):
-        mcp.resources["flow://spec/{filename}"]("spec-missing.md")
+        mcp.resources["flow://spec/{prd_slug}/{spec_name}"]("prd-slug", "missing.md")
 
 
 def test_get_plan_returns_content(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
     dirs["plans"].mkdir()
-    (dirs["plans"] / "plan-foo.md").write_text("# Plan Foo")
-    assert mcp.resources["flow://plan/{filename}"]("plan-foo.md") == "# Plan Foo"
+    (dirs["plans"] / "foo.md").write_text("# Plan Foo")
+    assert mcp.resources["flow://plan/{filename}"]("foo.md") == "# Plan Foo"
 
 
 def test_get_plan_missing_raises(mcp_and_dirs):
     mcp, _ = mcp_and_dirs
     with pytest.raises(ValueError, match="not found"):
-        mcp.resources["flow://plan/{filename}"]("plan-missing.md")
+        mcp.resources["flow://plan/{filename}"]("missing.md")

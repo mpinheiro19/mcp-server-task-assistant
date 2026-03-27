@@ -55,8 +55,8 @@ def mcp_and_tools(fake_dirs):
 def test_create_prd(mcp_and_tools):
     mcp, dirs = mcp_and_tools
     result = mcp.tools["create_prd"]("Minha Feature", "# PRD Content")
-    assert result["filename"] == "prd-minha-feature.md"
-    assert (dirs["prds"] / "prd-minha-feature.md").read_text() == "# PRD Content"
+    assert result["filename"] == "minha-feature.md"
+    assert (dirs["prds"] / "minha-feature.md").read_text() == "# PRD Content"
 
 
 def test_create_prd_duplicate_raises(mcp_and_tools):
@@ -68,24 +68,24 @@ def test_create_prd_duplicate_raises(mcp_and_tools):
 
 def test_create_spec(mcp_and_tools):
     mcp, dirs = mcp_and_tools
-    result = mcp.tools["create_spec"]("Sub Feature", "prd-minha-feature.md", "# Spec")
-    assert result["filename"] == "spec-minha-feature-sub-feature.md"
-    assert (dirs["specs"] / "spec-minha-feature-sub-feature.md").exists()
+    result = mcp.tools["create_spec"]("Sub Feature", "minha-feature.md", "# Spec")
+    assert result["filename"] == "minha-feature/sub-feature.md"
+    assert (dirs["specs"] / "minha-feature" / "sub-feature.md").exists()
 
 
 def test_create_plan(mcp_and_tools):
     mcp, dirs = mcp_and_tools
-    result = mcp.tools["create_plan"]("Deploy Pipeline", "spec-deploy-pipeline.prompt.md", "# Plan")
-    assert result["filename"] == "plan-deploy-pipeline.prompt.md"
-    assert (dirs["plans"] / "plan-deploy-pipeline.prompt.md").read_text() == "# Plan"
+    result = mcp.tools["create_plan"]("Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Plan")
+    assert result["filename"] == "deploy-pipeline.prompt.md"
+    assert (dirs["plans"] / "deploy-pipeline.prompt.md").read_text() == "# Plan"
 
 
 def test_create_plan_duplicate_raises(mcp_and_tools):
     mcp, dirs = mcp_and_tools
-    mcp.tools["create_plan"]("Deploy Pipeline", "spec-deploy-pipeline.prompt.md", "# Plan")
+    mcp.tools["create_plan"]("Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Plan")
     with pytest.raises(ValueError, match="already exists"):
         mcp.tools["create_plan"](
-            "Deploy Pipeline", "spec-deploy-pipeline.prompt.md", "# Another Plan"
+            "Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Another Plan"
         )
 
 
@@ -99,7 +99,7 @@ def test_create_prd_updates_index(mcp_and_tools):
     mcp.tools["create_prd"]("My Feature", "# PRD Content")
     rows = _parse_index_table(dirs["index"].read_text())
     assert len(rows) == 1
-    assert rows[0]["prd"] == "prd-my-feature.md"
+    assert rows[0]["prd"] == "my-feature.md"
     assert rows[0]["plan_status"] == "⏳ Waiting for Spec"
     assert rows[0]["implementation"] == "❌ Todo"
 
@@ -107,10 +107,10 @@ def test_create_prd_updates_index(mcp_and_tools):
 def test_create_spec_updates_index(mcp_and_tools):
     mcp, dirs = mcp_and_tools
     mcp.tools["create_prd"]("My Feature", "# PRD")
-    mcp.tools["create_spec"]("Sub Feature", "prd-my-feature.md", "# Spec")
+    mcp.tools["create_spec"]("Sub Feature", "my-feature.md", "# Spec")
     rows = _parse_index_table(dirs["index"].read_text())
     assert len(rows) == 1
-    assert rows[0]["spec"] == "spec-my-feature-sub-feature.md"
+    assert rows[0]["spec"] == "my-feature/sub-feature.md"
     assert rows[0]["plan_status"] == "🟡 Spec Draft"
     assert rows[0]["implementation"] == "❌ Todo"
 
@@ -118,8 +118,8 @@ def test_create_spec_updates_index(mcp_and_tools):
 def test_create_plan_updates_index(mcp_and_tools):
     mcp, dirs = mcp_and_tools
     mcp.tools["create_prd"]("My Feature", "# PRD")
-    mcp.tools["create_spec"]("Sub Feature", "prd-my-feature.md", "# Spec")
-    mcp.tools["create_plan"]("Sub Feature", "spec-my-feature-sub-feature.md", "# Plan")
+    mcp.tools["create_spec"]("Sub Feature", "my-feature.md", "# Spec")
+    mcp.tools["create_plan"]("Sub Feature", "my-feature/sub-feature.md", "# Plan")
     rows = _parse_index_table(dirs["index"].read_text())
     assert len(rows) == 1
     assert rows[0]["plan_status"] == "🟢 Done"
@@ -130,8 +130,8 @@ def test_create_prd_index_failure_best_effort(mcp_and_tools):
     mcp, dirs = mcp_and_tools
     with patch("mcp_assistant.tools.artifacts._update_index", side_effect=OSError("disk full")):
         result = mcp.tools["create_prd"]("Fail Feature", "# PRD")
-    assert result["filename"] == "prd-fail-feature.md"
-    assert (dirs["prds"] / "prd-fail-feature.md").exists()
+    assert result["filename"] == "fail-feature.md"
+    assert (dirs["prds"] / "fail-feature.md").exists()
     assert "index_warning" in result
     assert "disk full" in result["index_warning"]
 
@@ -276,7 +276,7 @@ async def test_ideate_prd_duplicate_found_returns_error(mcp_and_tools, mock_ctx)
     mcp, dirs = mcp_and_tools
     # Create a related PRD (similar slug tokens)
     dirs["prds"].mkdir(parents=True, exist_ok=True)
-    (dirs["prds"] / "prd-dark-mode-beta.md").write_text("existing")
+    (dirs["prds"] / "dark-mode-beta.md").write_text("existing")
 
     mock_ctx.elicit.side_effect = [
         _accepted("Dark Mode"),  # title (id=0) — only elicitation that fires

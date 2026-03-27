@@ -3,7 +3,7 @@ name = "mcp-assistant"
 version = "1.1.0b1"
 description = "MCP Server for Assistant Flow"
 requires-python = ">=3.10"
-dependencies = ["fastmcp>=3.1.1"]
+dependencies = ["fastmcp>=3.1.1", "tomli>=2.0; python_version < '3.11'"]
 
 [project.scripts]
 mcp-assistant = "mcp_assistant.server:main"

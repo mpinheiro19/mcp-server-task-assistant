@@ -23,6 +23,8 @@ This creates a `.venv` and installs all dependencies including the dev group.
 mcp-assistant/
 ├── src/mcp_assistant/   Package source (src layout)
 ├── tests/               pytest test suite
+│   ├── api/             API-level tests (ideate_prd, …)
+│   └── tools/           Tool-level tests (elicitation, …)
 ├── docs/                Documentation
 ├── configs/             Client configuration snippets
 ├── pyproject.toml       Project metadata and tool config
@@ -48,9 +50,16 @@ The test suite is fast (<1 second) and fully offline — no network or real file
 
 | File | Covers |
 | :--- | :--- |
-| `test_utils.py` | `_slugify` (accents, numbers, special chars) · `_parse_index_table` (happy path, empty, header-only) |
+| `test_utils.py` | `_slugify` (accents, numbers, special chars) · `_parse_index_table` (happy path, empty, header-only) · `_migrate_index_header_if_needed` |
 | `test_artifacts.py` | `create_prd/spec/plan` happy paths · duplicate detection |
-| `test_workflow.py` | `get_workflow_status` · `advance_stage` (valid, invalid, not-found) · `check_duplicate` (no match, match) |
+| `test_workflow.py` | `get_workflow_status` · `advance_stage` (valid, invalid, not-found) · `check_duplicate` (no match, match) · `sync_index` · `update_index` |
+| `test_prompts.py` | `prd_from_idea` (with/without context_filename) · `spec_from_prd` · `plan_from_spec` · `review_artefact` |
+| `test_resources.py` | All `flow://*` URIs including elicitation resources |
+| `test_server.py` | Server instantiation and module registration |
+| `test_e2e_flow.py` | End-to-end artifact lifecycle (create PRD → Spec → Plan → index state) |
+| `test_security.py` | Path traversal guards on all file-reading tools and resources |
+| `tools/test_elicitation.py` | `map_repository_context` · `run_expert_elicitation` · `consolidate_technical_context` (sampling and fallback paths) |
+| `api/test_ideate_prd.py` | `ideate_prd` elicitation flow · duplicate handling · sampling fallback |
 
 ---
 
@@ -72,10 +81,13 @@ ASSISTANT_FLOW_ROOT=/path/to/your/Codes uv run mcp-assistant
 
 ## Adding a New Tool
 
-1. Choose the appropriate module (`tools/artifacts.py` for creation, `tools/workflow.py` for state management).
-2. Add the function inside the `register(mcp)` body, decorated with `@mcp.tool()`.
+1. Choose the appropriate module:
+   - `tools/artifacts.py` — artifact creation tools
+   - `tools/workflow.py` — state management tools
+   - `tools/elicitation.py` — pre-PRD elicitation tools
+2. Add the function inside the `register(mcp)` body (or as a top-level function passed to `mcp.tool()` for sync tools).
 3. Import any new path constants from `mcp_assistant.config`.
-4. Add tests in the corresponding `tests/test_*.py` file using the `CaptureMCP` mock pattern.
+4. Add tests in the corresponding `tests/` file using the `CaptureMCP` mock pattern.
 
 **Example:**
 
@@ -99,10 +111,10 @@ Resources should be **read-only** and return a `str` (or JSON-encoded string). S
 
 ## Code Style
 
-- No formatter is enforced at this time; follow the existing style (PEP 8, 100-char line limit).
+- Formatter: **black** (line length 100). Linter: **ruff**.
 - Type annotations are used on all public function signatures.
 - Internal helpers are prefixed with `_` (e.g., `_slugify`, `_parse_index_table`).
-- Each module's public surface is the `register(mcp)` function only; all tool/resource functions are defined as closures within it.
+- Each module's public surface is the `register(mcp)` function only; tool/resource functions are defined as closures within it (exception: standalone sync functions like `map_repository_context` that are passed to `mcp.tool()` directly).
 
 ---
 

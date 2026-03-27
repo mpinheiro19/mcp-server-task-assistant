@@ -6,7 +6,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 ![Pre-release](https://img.shields.io/badge/pre--release-1.1.0b1-blue)
 
-MCP server that manages the **PRD → Spec → Plan** artifact lifecycle for software projects.
+MCP server that manages the **Elicitation → PRD → Spec → Plan** artifact lifecycle for software projects.
 Exposes tools, resources, and prompt templates consumed by Claude Code, Cursor, and VS Code Copilot via STDIO transport.
 
 ## Quick Start
@@ -20,7 +20,8 @@ The server starts in STDIO mode. Configure your client to spawn it — see [Conf
 
 ## Features
 
-- 📝 Artifact lifecycle: PRD → Spec → Plan
+- 🔍 Pre-PRD technical elicitation: repository scanning, architecture-aware question generation, and context consolidation
+- 📝 Artifact lifecycle: Elicitation → PRD → Spec → Plan
 - 🛠️ Exposes tools and prompt templates for LLM-based assistants
 - 📂 Read-only resource URIs for filesystem state
 - ⚡ Fast, stateless STDIO server
@@ -28,11 +29,22 @@ The server starts in STDIO mode. Configure your client to spawn it — see [Conf
 
 ## What It Does
 
-| Capability   | Description                                                                 |
-| :---        | :---                                                                       |
-| **Tools**   | Create PRDs, Specs, and Plans; manage `index.md` status; inspect for duplicates |
-| **Resources** | Read-only `flow://*` URIs exposing filesystem state                        |
-| **Prompts** | Context-rich LLM prompt templates for authoring and reviewing artifacts     |
+| Capability | Description |
+| :--- | :--- |
+| **Elicitation Tools** | Scan repositories, generate architecture-aware questions, consolidate answers into a technical context artifact |
+| **Artifact Tools** | Create PRDs, Specs, and Plans; manage `index.md` status; inspect for duplicates |
+| **Resources** | Read-only `flow://*` URIs exposing filesystem state, including elicitation artifacts |
+| **Prompts** | Context-rich LLM prompt templates for authoring and reviewing artifacts; supports injecting enriched elicitation context into PRD generation |
+
+## Workflow
+
+```
+run_expert_elicitation   →   (fill answers)   →   consolidate_technical_context
+                                                          ↓
+                                                  prd_from_idea(context_filename=…)
+                                                          ↓
+                                              create_prd → create_spec → create_plan
+```
 
 ## Documentation
 
