@@ -14,7 +14,7 @@ else:
         import tomli as tomllib  # type: ignore[no-reparse-import]  # noqa: F401
 
 from fastmcp import Context, FastMCP
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, create_model
 
 from mcp_assistant.config import ELICITATION_MAX_DEPTH, ELICITATIONS_DIR, PROJECT_ROOT
 from mcp_assistant.logging_config import LOG_PREVIEW_CHARS, log_operation
@@ -178,6 +178,59 @@ def _default_questions(feature_name: str, n: int) -> list[str]:
         "Are there any performance or resource limit considerations to define?",
     ]
     return defaults[:n]
+
+
+_PRE_PRD_DEFAULT_QUESTIONS = [
+    "Which existing modules or services will this feature interact with most?",
+    "Are there architectural patterns in the codebase we should follow for this feature?",
+    "What are the main technical risks or blockers you foresee?",
+    "Are there performance, security, or scalability constraints to define upfront?",
+    "Which team members or stakeholders should be involved in implementation decisions?",
+]
+
+
+def _build_pre_prd_discovery_prompt(
+    feature_name: str,
+    repo_ctx: "RepositoryContext",
+    num_questions: int,
+) -> str:
+    """Build a discovery prompt for pre-PRD architectural elicitation.
+
+    Unlike _build_elicitation_prompt (which reviews an existing PRD draft),
+    this prompt generates open-ended discovery questions based solely on the
+    feature name and repository context.
+    """
+    tree_sample = "\n".join(f"  {f}" for f in repo_ctx.tree[:30])
+    return (
+        f"You are a senior software architect conducting a discovery session for a new feature.\n"
+        f"Given the repository context below, generate exactly {num_questions} focused questions\n"
+        f"to clarify the architectural fit and technical implications before writing the PRD.\n"
+        f"Focus on:\n"
+        f"- Integration with the existing stack and modules\n"
+        f"- Potential architectural decisions and trade-offs\n"
+        f"- Technical risks specific to this codebase\n"
+        f"- Constraints not immediately obvious from the feature name\n\n"
+        f"Feature name: {feature_name}\n\n"
+        f"Repository Context:\n"
+        f"- Stack: {', '.join(repo_ctx.detected_stack) or 'Unknown'}\n"
+        f"- Patterns: {', '.join(repo_ctx.detected_patterns) or 'None identified'}\n"
+        f"- Root: {repo_ctx.root}\n"
+        f"- Key files:\n{tree_sample}\n\n"
+        f"Output Format:\n"
+        f"Return ONLY a numbered list, one question per line:\n"
+        f"1. <question>\n"
+        f"2. <question>\n"
+        f"..."
+    )
+
+
+def _make_answers_model(questions: list[str]):
+    """Create a dynamic Pydantic model with one answer field per question."""
+    fields = {
+        f"answer_{i + 1}": (str, Field(default="", description=question))
+        for i, question in enumerate(questions)
+    }
+    return create_model("PrePRDElicitationAnswers", **fields)
 
 
 def _build_consolidation_prompt(
@@ -591,6 +644,105 @@ patterns:
         "path": str(context_path),
         "sampling_used": sampling_used,
     }
+
+
+async def collect_pre_prd_elicitation(
+    ctx: Context,
+    feature_name: str,
+    project_path: str = "",
+    num_questions: int = 4,
+) -> str:
+    """Run a pre-PRD architectural discovery session via interactive elicitation.
+
+    Maps the repository context, generates discovery questions via LLM sampling,
+    then presents them to the user as a structured form via ctx.elicit().
+
+    Unlike run_expert_elicitation (which requires an existing PRD draft), this
+    function operates on the feature name alone and is designed to be called
+    before any PRD is written.
+
+    Args:
+        ctx: FastMCP context for sampling and elicitation.
+        feature_name: Human-readable feature name used to frame discovery questions.
+        project_path: Path to the target repository. Defaults to PROJECT_ROOT.
+        num_questions: Number of questions to generate. Clamped to [3, 5].
+
+    Returns:
+        Formatted discovery context string to enrich PRD generation, or empty
+        string if the user declined/cancelled the elicitation form.
+    """
+    num_questions = max(3, min(num_questions, 5))
+    logger.info(
+        "start op=collect_pre_prd_elicitation feature=%s num_questions=%d",
+        feature_name,
+        num_questions,
+    )
+
+    repo_ctx_dict = map_repository_context(project_path)
+    repo_ctx = RepositoryContext(**repo_ctx_dict)
+
+    questions: list[str] = []
+    logger.info(
+        "llm_sampling_start tool=collect_pre_prd_elicitation feature=%s", feature_name
+    )
+    try:
+        result = await ctx.sample(
+            _build_pre_prd_discovery_prompt(feature_name, repo_ctx, num_questions)
+        )
+        questions = _parse_questions(result.text, num_questions)
+        logger.info(
+            "llm_sampling_end tool=collect_pre_prd_elicitation status=ok feature=%s questions=%d",
+            feature_name,
+            len(questions),
+        )
+    except Exception as exc:
+        logger.warning(
+            "llm_sampling_end tool=collect_pre_prd_elicitation status=fallback feature=%s error=%r",
+            feature_name,
+            str(exc),
+        )
+        questions = _PRE_PRD_DEFAULT_QUESTIONS[:num_questions]
+
+    AnswersModel = _make_answers_model(questions)
+    answers_result = await ctx.elicit(
+        f"Answer these discovery questions to help shape the PRD for '{feature_name}' "
+        "(decline to skip this step):",
+        response_type=AnswersModel,
+    )
+
+    if answers_result.action in ("decline", "cancel"):
+        logger.info(
+            "collect_pre_prd_elicitation skipped action=%s feature=%s",
+            answers_result.action,
+            feature_name,
+        )
+        return ""
+
+    answers_data = answers_result.data
+    qa_pairs = []
+    for i, question in enumerate(questions):
+        answer = getattr(answers_data, f"answer_{i + 1}", "") or ""
+        if answer.strip():
+            qa_pairs.append(f"**Q{i + 1}: {question}**\nA: {answer.strip()}")
+
+    if not qa_pairs:
+        logger.info(
+            "collect_pre_prd_elicitation no_answers feature=%s", feature_name
+        )
+        return ""
+
+    enriched = (
+        f"## Pre-PRD Technical Discovery: {feature_name}\n\n"
+        f"**Repository Stack:** {', '.join(repo_ctx.detected_stack) or 'Unknown'}\n"
+        f"**Detected Patterns:** {', '.join(repo_ctx.detected_patterns) or 'None'}\n\n"
+        "### Discovery Q&A\n\n" + "\n\n".join(qa_pairs)
+    )
+    logger.info(
+        "end op=collect_pre_prd_elicitation status=ok feature=%s enriched_chars=%d",
+        feature_name,
+        len(enriched),
+    )
+    return enriched
 
 
 def register(mcp: FastMCP) -> None:

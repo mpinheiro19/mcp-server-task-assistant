@@ -12,9 +12,22 @@ from mcp_assistant.tools.workflow import (
     _get_index_row_by_spec,
     _update_index,
 )
+from mcp_assistant.tools.elicitation import collect_pre_prd_elicitation
 from mcp_assistant.utils import _gather_workspace_context, _slugify
 
 logger = logging.getLogger(__name__)
+
+
+class ElicitationChoice(BaseModel):
+    """User preference for the pre-PRD architectural discovery step."""
+
+    run_elicitation: bool = Field(
+        default=True,
+        description=(
+            "Run a short architectural discovery session before generating the PRD? "
+            "Recommended for better-informed results."
+        ),
+    )
 
 
 class IdeaDetails(BaseModel):
@@ -277,8 +290,27 @@ def register(mcp) -> None:
             }
         logger.debug("ideate_prd step=2 no_duplicates_found feature=%s", feature_name)
 
-        # Step 3 — structured details form (elicitation id=1)
-        logger.debug("ideate_prd step=3 action=elicit_details feature=%s", feature_name)
+        # Step 3 — offer pre-PRD architectural discovery (premise, skippable)
+        logger.debug("ideate_prd step=3 action=elicit_choice feature=%s", feature_name)
+        choice_result = await ctx.elicit(
+            "Run an architectural discovery session before generating the PRD?",
+            response_type=ElicitationChoice,
+        )
+
+        enriched_context = ""
+        if choice_result.action == "accept" and choice_result.data.run_elicitation:
+            logger.info("ideate_prd step=3 elicitation=requested feature=%s", feature_name)
+            enriched_context = await collect_pre_prd_elicitation(ctx, feature_name)
+            logger.info(
+                "ideate_prd step=3 elicitation=done feature=%s enriched_chars=%d",
+                feature_name,
+                len(enriched_context),
+            )
+        else:
+            logger.info("ideate_prd step=3 elicitation=skipped feature=%s", feature_name)
+
+        # Step 4 — structured details form
+        logger.debug("ideate_prd step=4 action=elicit_details feature=%s", feature_name)
         details_result = await ctx.elicit("Fill in the PRD details:", response_type=IdeaDetails)
         if details_result.action in ("decline", "cancel"):
             logger.info("ideate_prd cancelled step=details action=%s", details_result.action)
@@ -286,19 +318,19 @@ def register(mcp) -> None:
 
         details: IdeaDetails = details_result.data  # type: ignore[union-attr]
         logger.debug(
-            "ideate_prd step=3 details_received priority=%s project_path=%r",
+            "ideate_prd step=4 details_received priority=%s project_path=%r",
             details.priority,
             details.project_path or "(default)",
         )
 
-        # Step 4 — gather workspace context
-        logger.debug("ideate_prd step=4 action=gather_workspace_context")
+        # Step 5 — gather workspace context (used when elicitation was skipped)
+        logger.debug("ideate_prd step=5 action=gather_workspace_context")
         codebase_context = _gather_workspace_context(details.project_path)
         logger.debug(
-            "ideate_prd step=4 workspace_context_chars=%d", len(codebase_context)
+            "ideate_prd step=5 workspace_context_chars=%d", len(codebase_context)
         )
 
-        # Step 5 — build rich idea description from all IdeaDetails fields
+        # Step 6 — build rich idea description from all IdeaDetails fields
         idea_parts = [
             f"# {feature_name}",
             f"**Problem Statement:** {details.problem_statement}",
@@ -319,9 +351,9 @@ def register(mcp) -> None:
             idea_parts.append(f"**Technical Notes:** {details.technical_notes}")
         idea_str = "\n\n".join(idea_parts)
 
-        prompt = _build_prd_prompt(idea_str, codebase_context)
+        prompt = _build_prd_prompt(idea_str, codebase_context, enriched_context)
 
-        # Step 6 — LLM sampling with fallback to basic template
+        # Step 7 — LLM sampling with fallback to basic template
         sampling_used = False
         logger.info("llm_sampling_start tool=ideate_prd feature=%s max_tokens=4096", feature_name)
         try:
@@ -368,6 +400,7 @@ def register(mcp) -> None:
             "path": str(prd_path),
             "feature_name": feature_name,
             "sampling_used": sampling_used,
+            "elicitation_used": bool(enriched_context),
         }
         try:
             _update_index(filename, "", feature_name, "⏳ Waiting for Spec", "❌ Todo")
