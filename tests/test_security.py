@@ -71,20 +71,20 @@ def test_get_prd_rejects_path_traversal(tmp_path, bad_filename):
 
 
 @pytest.mark.parametrize(
-    "bad_filename",
+    "bad_prd_slug,bad_spec_name",
     [
-        "../../etc/passwd",
-        "../secrets.md",
+        ("../../etc", "passwd"),
+        ("..", "secrets.md"),
     ],
 )
-def test_get_spec_rejects_path_traversal(tmp_path, bad_filename):
+def test_get_spec_rejects_path_traversal(tmp_path, bad_prd_slug, bad_spec_name):
     mcp = CaptureMCP()
     specs = tmp_path / "specs"
     specs.mkdir()
     with patch("mcp_assistant.resources.flow.SPECS_DIR", specs):
         flow_module.register(mcp)
     with pytest.raises(ValueError, match="[Ii]nvalid"):
-        mcp.resources["flow://spec/{filename}"](bad_filename)
+        mcp.resources["flow://spec/{prd_slug}/{spec_name}"](bad_prd_slug, bad_spec_name)
 
 
 @pytest.mark.parametrize(
@@ -284,8 +284,8 @@ def test_create_prd_handles_large_content(tmp_path):
         artifacts_module.register(mcp)
         result = mcp.tools["create_prd"]("Big Feature", large_content)
 
-    assert result["filename"] == "prd-big-feature.md"
-    assert (prds / "prd-big-feature.md").stat().st_size == 1_000_000
+    assert result["filename"] == "big-feature.md"
+    assert (prds / "big-feature.md").stat().st_size == 1_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -307,11 +307,11 @@ def test_create_spec_duplicate_raises(tmp_path):
         patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
     ):
         artifacts_module.register(mcp)
-        mcp.tools["create_spec"]("Auth Flow", "prd-auth.md", "# Spec v1")
+        mcp.tools["create_spec"]("Auth Flow", "auth.md", "# Spec v1")
         with pytest.raises(ValueError, match="already exists"):
-            mcp.tools["create_spec"]("Auth Flow", "prd-auth.md", "# Spec v2 — overwrite attempt")
+            mcp.tools["create_spec"]("Auth Flow", "auth.md", "# Spec v2 — overwrite attempt")
 
-    original = (specs / "spec-auth-auth-flow.md").read_text()
+    original = (specs / "auth" / "auth-flow.md").read_text()
     assert original == "# Spec v1", "Original content must not be overwritten on duplicate"
 
 

@@ -12,12 +12,20 @@ Generates a structured prompt for authoring a new PRD from a raw idea.
 - `copilot-instructions.md` — governance protocol
 - `prd-prompt.md` (from `spec-driven-assistant/`) — PRD authoring guidelines
 - Current `index.md` — existing feature inventory to avoid duplicates
+- `context-{slug}.md` (optional, from `elicitations/`) — enriched technical context produced by `consolidate_technical_context`; replaces generic codebase context when provided
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
 | `idea` | `str` | Free-form description of the feature idea. |
+| `context_filename` | `str \| None` | Filename of a `context-{slug}.md` artifact in `ELICITATIONS_DIR`. Optional. When provided, must exist. |
 
-**Recommended prior step:** call `check_duplicate(idea)` to confirm no existing artifact covers the same feature before invoking this prompt.
+**Recommended prior steps:**
+1. Call `check_duplicate(idea)` to confirm no existing artifact covers the same feature.
+2. (Optional but recommended) Run the elicitation flow: `run_expert_elicitation` → fill answers → `consolidate_technical_context` → pass the resulting `context_filename`.
+
+**Errors:**
+- `ValueError` if `context_filename` would escape `ELICITATIONS_DIR` (path traversal guard).
+- `FileNotFoundError` if `context_filename` is provided but the file does not exist.
 
 ---
 

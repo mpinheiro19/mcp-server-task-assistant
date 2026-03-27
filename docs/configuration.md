@@ -25,15 +25,17 @@ bash scripts/setup.sh
 | :--- | :--- | :--- |
 | `MCP_ASSISTANT_DIR` | Git repo root (auto-detected) | Absolute path to the `mcp-assistant` project root. |
 | `ASSISTANT_FLOW_ROOT` | `~/Codes` | Root directory that contains `copilot-assistants/`. |
+| `ELICITATION_MAX_DEPTH` | `3` | Maximum directory depth when scanning a repository with `map_repository_context`. |
 
 All path constants in `config.py` derive from `ASSISTANT_FLOW_ROOT`:
 
 ```python
-COPILOT_ROOT = CODES_ROOT / "copilot-assistants"
-PRDS_DIR     = COPILOT_ROOT / "prds"
-SPECS_DIR    = COPILOT_ROOT / "specs"
-PLANS_DIR    = COPILOT_ROOT / "plans"
-INDEX_FILE   = COPILOT_ROOT / "index.md"
+COPILOT_ROOT    = CODES_ROOT / "copilot-assistants"
+PRDS_DIR        = COPILOT_ROOT / "prds"
+SPECS_DIR       = COPILOT_ROOT / "specs"
+PLANS_DIR       = COPILOT_ROOT / "plans"
+ELICITATIONS_DIR = COPILOT_ROOT / "elicitations"
+INDEX_FILE      = COPILOT_ROOT / "index.md"
 ```
 
 See [`.env.example`](../.env.example) for a reference of all configurable variables.

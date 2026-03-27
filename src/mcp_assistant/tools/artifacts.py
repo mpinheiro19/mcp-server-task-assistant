@@ -1,12 +1,13 @@
 import logging
-import re
 from typing import Literal
 
 from fastmcp import Context
 from pydantic import BaseModel, Field
 
 from mcp_assistant.config import PLANS_DIR, PRDS_DIR, SPECS_DIR
+from mcp_assistant.logging_config import LOG_PREVIEW_CHARS, log_operation
 from mcp_assistant.prompts.templates import _build_prd_prompt
+from mcp_assistant.tools.elicitation import collect_pre_prd_elicitation
 from mcp_assistant.tools.workflow import (
     _get_index_row_by_prd,
     _get_index_row_by_spec,
@@ -15,6 +16,18 @@ from mcp_assistant.tools.workflow import (
 from mcp_assistant.utils import _gather_workspace_context, _slugify
 
 logger = logging.getLogger(__name__)
+
+
+class ElicitationChoice(BaseModel):
+    """User preference for the pre-PRD architectural discovery step."""
+
+    run_elicitation: bool = Field(
+        default=True,
+        description=(
+            "Run a short architectural discovery session before generating the PRD? "
+            "Recommended for better-informed results."
+        ),
+    )
 
 
 class IdeaDetails(BaseModel):
@@ -89,24 +102,33 @@ def register(mcp) -> None:
         Slugifies feature_name → prd-<slug>.md. Checks for duplicates before creating.
         Automatically registers the artifact in index.md after creation.
         """
-        slug = _slugify(feature_name)
-        filename = f"prd-{slug}.md"
-        path = PRDS_DIR / filename
+        with log_operation(logger, "create_prd", feature=feature_name):
+            slug = _slugify(feature_name)
+            filename = f"{slug}.md"
+            path = PRDS_DIR / filename
 
-        if path.exists():
-            raise ValueError(
-                f"PRD '{filename}' already exists. Use a different name or increment the version."
+            if path.exists():
+                raise ValueError(
+                    f"PRD '{filename}' already exists. Use a different name or increment the version."
+                )
+
+            PRDS_DIR.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            size = path.stat().st_size
+            logger.info("prd_written filename=%s size_bytes=%d", filename, size)
+            logger.debug(
+                "content_preview tool=create_prd chars=%d preview=%r",
+                min(LOG_PREVIEW_CHARS, len(content)),
+                content[:LOG_PREVIEW_CHARS],
             )
 
-        PRDS_DIR.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-
-        result: dict = {"filename": filename, "path": str(path)}
-        try:
-            _update_index(filename, "", feature_name, "⏳ Waiting for Spec", "❌ Todo")
-        except Exception as exc:
-            result["index_warning"] = str(exc)
-        return result
+            result: dict = {"filename": filename, "path": str(path)}
+            try:
+                _update_index(filename, "", feature_name, "⏳ Waiting for Spec", "❌ Todo")
+            except Exception as exc:
+                logger.warning("index_update_failed filename=%s error=%r", filename, str(exc))
+                result["index_warning"] = str(exc)
+            return result
 
     @mcp.tool()
     def create_spec(feature_name: str, prd_filename: str, content: str) -> dict:
@@ -116,27 +138,37 @@ def register(mcp) -> None:
         Updates index.md: fills spec_filename and changes plan_status to '🟡 Spec Draft'.
         Preserves the existing implementation_status.
         """
-        prd_slug = re.sub(r"^prd-", "", prd_filename.removesuffix(".md"))
-        feature_slug = _slugify(feature_name)
-        filename = f"spec-{prd_slug}-{feature_slug}.md"
-        path = SPECS_DIR / filename
+        with log_operation(logger, "create_spec", feature=feature_name, prd=prd_filename):
+            prd_slug = prd_filename.removesuffix(".md")
+            feature_slug = _slugify(feature_name)
+            spec_dir = SPECS_DIR / prd_slug
+            filename = f"{prd_slug}/{feature_slug}.md"
+            path = spec_dir / f"{feature_slug}.md"
 
-        if path.exists():
-            raise ValueError(
-                f"Spec '{filename}' already exists. Use a different name or increment the version."
+            if path.exists():
+                raise ValueError(
+                    f"Spec '{filename}' already exists. Use a different name or increment the version."
+                )
+
+            spec_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            size = path.stat().st_size
+            logger.info("spec_written filename=%s size_bytes=%d", filename, size)
+            logger.debug(
+                "content_preview tool=create_spec chars=%d preview=%r",
+                min(LOG_PREVIEW_CHARS, len(content)),
+                content[:LOG_PREVIEW_CHARS],
             )
 
-        SPECS_DIR.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-
-        result: dict = {"filename": filename, "path": str(path)}
-        try:
-            existing = _get_index_row_by_prd(prd_filename)
-            impl = existing["implementation"] if existing else "❌ Todo"
-            _update_index(prd_filename, filename, feature_name, "🟡 Spec Draft", impl)
-        except Exception as exc:
-            result["index_warning"] = str(exc)
-        return result
+            result: dict = {"filename": filename, "path": str(path)}
+            try:
+                existing = _get_index_row_by_prd(prd_filename)
+                impl = existing["implementation"] if existing else "❌ Todo"
+                _update_index(prd_filename, filename, feature_name, "🟡 Spec Draft", impl)
+            except Exception as exc:
+                logger.warning("index_update_failed filename=%s error=%r", filename, str(exc))
+                result["index_warning"] = str(exc)
+            return result
 
     @mcp.tool()
     def create_plan(feature_name: str, spec_filename: str, content: str) -> dict:
@@ -146,36 +178,46 @@ def register(mcp) -> None:
         Updates index.md: changes plan_status to '🟢 Done'. Preserves implementation_status.
         spec_filename is required to locate the correct row in index.md.
         """
-        slug = _slugify(feature_name)
-        filename = f"plan-{slug}.prompt.md"
-        path = PLANS_DIR / filename
+        with log_operation(logger, "create_plan", feature=feature_name, spec=spec_filename):
+            slug = _slugify(feature_name)
+            filename = f"{slug}.prompt.md"
+            path = PLANS_DIR / filename
 
-        if path.exists():
-            raise ValueError(
-                f"Plan '{filename}' already exists. Use a different name or increment the version."
+            if path.exists():
+                raise ValueError(
+                    f"Plan '{filename}' already exists. Use a different name or increment the version."
+                )
+
+            PLANS_DIR.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            size = path.stat().st_size
+            logger.info("plan_written filename=%s size_bytes=%d", filename, size)
+            logger.debug(
+                "content_preview tool=create_plan chars=%d preview=%r",
+                min(LOG_PREVIEW_CHARS, len(content)),
+                content[:LOG_PREVIEW_CHARS],
             )
 
-        PLANS_DIR.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-
-        result: dict = {"filename": filename, "path": str(path)}
-        try:
-            existing = _get_index_row_by_spec(spec_filename)
-            if existing:
-                _update_index(
-                    existing["prd"],
-                    spec_filename,
-                    existing["feature"],
-                    "🟢 Done",
-                    existing["implementation"],
-                )
-            else:
-                result["index_warning"] = (
-                    f"Spec '{spec_filename}' not found in index.md; " "entry not updated."
-                )
-        except Exception as exc:
-            result["index_warning"] = str(exc)
-        return result
+            result: dict = {"filename": filename, "path": str(path)}
+            try:
+                existing = _get_index_row_by_spec(spec_filename)
+                if existing:
+                    _update_index(
+                        existing["prd"],
+                        spec_filename,
+                        existing["feature"],
+                        "🟢 Done",
+                        existing["implementation"],
+                    )
+                else:
+                    logger.warning("spec_not_in_index spec=%s plan=%s", spec_filename, filename)
+                    result["index_warning"] = (
+                        f"Spec '{spec_filename}' not found in index.md; " "entry not updated."
+                    )
+            except Exception as exc:
+                logger.warning("index_update_failed filename=%s error=%r", filename, str(exc))
+                result["index_warning"] = str(exc)
+            return result
 
     @mcp.tool()
     async def ideate_prd(ctx: Context) -> dict:
@@ -206,17 +248,23 @@ def register(mcp) -> None:
             - ``sampling_used`` (bool): Whether LLM sampling was used.
             - ``reason`` (str): Explains why the PRD was not saved (only when ``saved=False``).
         """
+        logger.info("start op=ideate_prd")
+
         # Step 1 — collect feature title (elicitation id=0)
+        logger.debug("ideate_prd step=1 action=elicit_title")
         title_result = await ctx.elicit("What is the name/title of the feature?", response_type=str)
         if title_result.action in ("decline", "cancel"):
+            logger.info("ideate_prd cancelled step=title action=%s", title_result.action)
             return {"saved": False, "reason": "Cancelled at title step"}
 
         feature_name: str = title_result.data  # type: ignore[union-attr]
+        logger.info("ideate_prd step=1 feature=%s", feature_name)
 
         # Step 2 — synchronous duplicate check (fail-fast, no elicitation round-trip)
+        logger.debug("ideate_prd step=2 action=duplicate_check feature=%s", feature_name)
         slug = _slugify(feature_name)
         tokens = [t for t in slug.split("-") if len(t) >= 4]
-        prd_patterns = [f"prd-{slug}*.md"] + [f"prd-*{t}*.md" for t in tokens]
+        prd_patterns = [f"{slug}*.md"] + [f"*{t}*.md" for t in tokens]
         existing_prds: list[str] = []
         if PRDS_DIR.exists():
             seen: set = set()
@@ -228,7 +276,7 @@ def register(mcp) -> None:
 
         if existing_prds:
             logger.warning(
-                "Duplicate PRD candidates detected for '%s': %s", feature_name, existing_prds
+                "duplicate_prd_detected feature=%s matches=%s", feature_name, existing_prds
             )
             return {
                 "saved": False,
@@ -238,18 +286,47 @@ def register(mcp) -> None:
                     "Review the existing PRD or choose a different feature name."
                 ),
             }
+        logger.debug("ideate_prd step=2 no_duplicates_found feature=%s", feature_name)
 
-        # Step 3 — structured details form (elicitation id=1)
+        # Step 3 — offer pre-PRD architectural discovery (premise, skippable)
+        logger.debug("ideate_prd step=3 action=elicit_choice feature=%s", feature_name)
+        choice_result = await ctx.elicit(
+            "Run an architectural discovery session before generating the PRD?",
+            response_type=ElicitationChoice,
+        )
+
+        enriched_context = ""
+        if choice_result.action == "accept" and choice_result.data.run_elicitation:
+            logger.info("ideate_prd step=3 elicitation=requested feature=%s", feature_name)
+            enriched_context = await collect_pre_prd_elicitation(ctx, feature_name)
+            logger.info(
+                "ideate_prd step=3 elicitation=done feature=%s enriched_chars=%d",
+                feature_name,
+                len(enriched_context),
+            )
+        else:
+            logger.info("ideate_prd step=3 elicitation=skipped feature=%s", feature_name)
+
+        # Step 4 — structured details form
+        logger.debug("ideate_prd step=4 action=elicit_details feature=%s", feature_name)
         details_result = await ctx.elicit("Fill in the PRD details:", response_type=IdeaDetails)
         if details_result.action in ("decline", "cancel"):
+            logger.info("ideate_prd cancelled step=details action=%s", details_result.action)
             return {"saved": False, "reason": "Cancelled at details step"}
 
         details: IdeaDetails = details_result.data  # type: ignore[union-attr]
+        logger.debug(
+            "ideate_prd step=4 details_received priority=%s project_path=%r",
+            details.priority,
+            details.project_path or "(default)",
+        )
 
-        # Step 4 — gather workspace context
+        # Step 5 — gather workspace context (used when elicitation was skipped)
+        logger.debug("ideate_prd step=5 action=gather_workspace_context")
         codebase_context = _gather_workspace_context(details.project_path)
+        logger.debug("ideate_prd step=5 workspace_context_chars=%d", len(codebase_context))
 
-        # Step 5 — build rich idea description from all IdeaDetails fields
+        # Step 6 — build rich idea description from all IdeaDetails fields
         idea_parts = [
             f"# {feature_name}",
             f"**Problem Statement:** {details.problem_statement}",
@@ -270,30 +347,50 @@ def register(mcp) -> None:
             idea_parts.append(f"**Technical Notes:** {details.technical_notes}")
         idea_str = "\n\n".join(idea_parts)
 
-        prompt = _build_prd_prompt(idea_str, codebase_context)
+        prompt = _build_prd_prompt(idea_str, codebase_context, enriched_context)
 
-        # Step 6 — LLM sampling with fallback to basic template
+        # Step 7 — LLM sampling with fallback to basic template
         sampling_used = False
+        logger.info("llm_sampling_start tool=ideate_prd feature=%s max_tokens=4096", feature_name)
+        await ctx.info(f"Generating PRD draft for '{feature_name}' using LLM...")
+        await ctx.report_progress(0, message="Generating PRD draft...")
         try:
             sample_result = await ctx.sample(prompt, max_tokens=4096)
             draft = sample_result.text or _render_prd_draft(feature_name, details)
             sampling_used = True
-            logger.info("PRD draft generated via LLM sampling for '%s'", feature_name)
+            await ctx.report_progress(1, 1, message="PRD draft generated!")
+            logger.info(
+                "llm_sampling_end tool=ideate_prd status=ok feature=%s draft_chars=%d",
+                feature_name,
+                len(draft),
+            )
+            logger.debug(
+                "content_preview tool=ideate_prd chars=%d preview=%r",
+                min(LOG_PREVIEW_CHARS, len(draft)),
+                draft[:LOG_PREVIEW_CHARS],
+            )
         except Exception as exc:
             logger.warning(
-                "LLM sampling failed for '%s', using template fallback: %s",
+                "llm_sampling_end tool=ideate_prd status=fallback feature=%s error=%r",
                 feature_name,
-                exc,
+                str(exc),
             )
             draft = _render_prd_draft(feature_name, details)
 
         # Persist the PRD automatically — no duplicate detected at this point.
         slug = _slugify(feature_name)
-        filename = f"prd-{slug}.md"
+        filename = f"{slug}.md"
         prd_path = PRDS_DIR / filename
         PRDS_DIR.mkdir(parents=True, exist_ok=True)
         prd_path.write_text(draft)
-        logger.info("PRD '%s' auto-saved to '%s'", feature_name, prd_path)
+        size = prd_path.stat().st_size
+        logger.info(
+            "prd_auto_saved feature=%s filename=%s size_bytes=%d sampling_used=%s",
+            feature_name,
+            filename,
+            size,
+            sampling_used,
+        )
 
         result: dict = {
             "saved": True,
@@ -302,9 +399,13 @@ def register(mcp) -> None:
             "path": str(prd_path),
             "feature_name": feature_name,
             "sampling_used": sampling_used,
+            "elicitation_used": bool(enriched_context),
         }
         try:
             _update_index(filename, "", feature_name, "⏳ Waiting for Spec", "❌ Todo")
         except Exception as exc:
+            logger.warning("index_update_failed filename=%s error=%r", filename, str(exc))
             result["index_warning"] = str(exc)
+
+        logger.info("end op=ideate_prd status=ok feature=%s saved=True", feature_name)
         return result

@@ -18,6 +18,7 @@ from unittest.mock import patch
 import pytest
 
 import mcp_assistant.config as config_module
+import mcp_assistant.prompts.templates as templates_module
 import mcp_assistant.tools.artifacts as artifacts_module
 import mcp_assistant.tools.workflow as workflow_module
 from mcp_assistant.utils import _parse_index_table
@@ -105,7 +106,7 @@ def test_full_lifecycle_prd_spec_plan(env):
     prd_result = tools["create_prd"](
         "Payment Gateway", "# PRD: Payment Gateway\n\nEnable payments."
     )
-    assert prd_result["filename"] == "prd-payment-gateway.md"
+    assert prd_result["filename"] == "payment-gateway.md"
     _assert_json_serialisable(prd_result, "create_prd")
 
     rows = _parse_index_table(d["index"].read_text())
@@ -113,9 +114,9 @@ def test_full_lifecycle_prd_spec_plan(env):
 
     # Stage 2 — create Spec
     spec_result = tools["create_spec"](
-        "Checkout Flow", "prd-payment-gateway.md", "# Spec: Checkout Flow"
+        "Checkout Flow", "payment-gateway.md", "# Spec: Checkout Flow"
     )
-    assert spec_result["filename"] == "spec-payment-gateway-checkout-flow.md"
+    assert spec_result["filename"] == "payment-gateway/checkout-flow.md"
     _assert_json_serialisable(spec_result, "create_spec")
 
     rows = _parse_index_table(d["index"].read_text())
@@ -123,9 +124,9 @@ def test_full_lifecycle_prd_spec_plan(env):
 
     # Stage 3 — create Plan
     plan_result = tools["create_plan"](
-        "Checkout Flow", "spec-payment-gateway-checkout-flow.md", "# Plan: Checkout Flow"
+        "Checkout Flow", "payment-gateway/checkout-flow.md", "# Plan: Checkout Flow"
     )
-    assert plan_result["filename"] == "plan-checkout-flow.prompt.md"
+    assert plan_result["filename"] == "checkout-flow.prompt.md"
     _assert_json_serialisable(plan_result, "create_plan")
 
     rows = _parse_index_table(d["index"].read_text())
@@ -142,8 +143,8 @@ def test_workflow_status_after_full_cycle(env):
     tools = d["tools"]
 
     tools["create_prd"]("Feature A", "# PRD A")
-    tools["create_spec"]("Sub A", "prd-feature-a.md", "# Spec A")
-    tools["create_plan"]("Sub A", "spec-feature-a-sub-a.md", "# Plan A")
+    tools["create_spec"]("Sub A", "feature-a.md", "# Spec A")
+    tools["create_plan"]("Sub A", "feature-a/sub-a.md", "# Plan A")
     # Mark Feature A as implemented so the 'done' counter picks it up
     tools["advance_stage"]("Sub A", "🟢 Done", "✅ Concluído")
 
@@ -221,8 +222,8 @@ def test_list_artefacts_all_payload_has_type_field(env):
     tools = d["tools"]
 
     tools["create_prd"]("Multi", "# PRD")
-    tools["create_spec"]("Part", "prd-multi.md", "# Spec")
-    tools["create_plan"]("Part", "spec-multi-part.md", "# Plan")
+    tools["create_spec"]("Part", "multi.md", "# Spec")
+    tools["create_plan"]("Part", "multi/part.md", "# Plan")
 
     result = tools["list_artefacts"]("all")
     _assert_json_serialisable(result, "list_artefacts all")
@@ -242,14 +243,14 @@ def test_sync_index_full_reconciliation(env):
 
     # Create artifacts on disk without going through MCP tools
     d["prds"].mkdir(parents=True, exist_ok=True)
-    d["specs"].mkdir(parents=True, exist_ok=True)
+    (d["specs"] / "orphan").mkdir(parents=True, exist_ok=True)
     d["plans"].mkdir(parents=True, exist_ok=True)
-    (d["prds"] / "prd-orphan.md").write_text("# Orphan PRD")
-    (d["specs"] / "spec-orphan-detail.md").write_text("# Orphan Spec")
+    (d["prds"] / "orphan.md").write_text("# Orphan PRD")
+    (d["specs"] / "orphan" / "detail.md").write_text("# Orphan Spec")
 
     result = tools["sync_index"]()
     _assert_json_serialisable(result, "sync_index")
-    assert "prd-orphan.md" in result["added"]
+    assert "orphan.md" in result["added"]
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +267,7 @@ def test_create_prd_path_is_string(env):
 def test_create_spec_path_is_string(env):
     mcp, d = env
     d["tools"]["create_prd"]("String Path", "# PRD")
-    result = d["tools"]["create_spec"]("Detail", "prd-string-path.md", "# Spec")
+    result = d["tools"]["create_spec"]("Detail", "string-path.md", "# Spec")
     assert isinstance(result["path"], str)
 
 
@@ -274,3 +275,54 @@ def test_create_plan_path_is_string(env):
     mcp, d = env
     result = d["tools"]["create_plan"]("String Path", "spec-string-path.md", "# Plan")
     assert isinstance(result["path"], str)
+
+
+# ---------------------------------------------------------------------------
+# 8. prd_from_idea with enriched context end-to-end
+# ---------------------------------------------------------------------------
+
+
+class CapturePromptMCP:
+    def __init__(self):
+        self.prompts: dict = {}
+
+    def prompt(self):
+        def decorator(fn):
+            self.prompts[fn.__name__] = fn
+            return fn
+
+        return decorator
+
+
+def test_e2e_with_elicitation_flow(tmp_path):
+    """prd_from_idea injects enriched context when context_filename is provided."""
+    elicitations = tmp_path / "elicitations"
+    elicitations.mkdir()
+    ctx_file = elicitations / "context-my-feature.md"
+    ctx_file.write_text("# Architecture\nWe use the existing adapter pattern.")
+
+    mcp = CapturePromptMCP()
+    with (
+        patch("mcp_assistant.prompts.templates.ELICITATIONS_DIR", elicitations),
+        patch("mcp_assistant.prompts.templates.PRDS_DIR", tmp_path / "prds"),
+        patch("mcp_assistant.prompts.templates.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.prompts.templates.PLANS_DIR", tmp_path / "plans"),
+        patch(
+            "mcp_assistant.prompts.templates.SPEC_ASSISTANT_DIR",
+            tmp_path / "spec-driven-assistant",
+        ),
+        patch("mcp_assistant.prompts.templates.INDEX_FILE", tmp_path / "index.md"),
+        patch(
+            "mcp_assistant.prompts.templates.COPILOT_INSTRUCTIONS",
+            tmp_path / "copilot-instructions.md",
+        ),
+    ):
+        templates_module.register(mcp)
+        messages = mcp.prompts["prd_from_idea"](
+            "My Feature idea", context_filename="context-my-feature.md"
+        )
+
+    assert len(messages) == 1
+    content = messages[0].content.text
+    assert "ENRICHED ARCHITECTURAL CONTEXT" in content
+    assert "adapter pattern" in content

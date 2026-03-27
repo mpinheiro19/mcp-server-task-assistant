@@ -25,6 +25,7 @@ def dirs(tmp_path):
     specs = tmp_path / "specs"
     plans = tmp_path / "plans"
     spec_assistant = tmp_path / "spec-driven-assistant"
+    elicitations = tmp_path / "elicitations"
     index = tmp_path / "index.md"
     instructions = tmp_path / "copilot-instructions.md"
 
@@ -32,12 +33,14 @@ def dirs(tmp_path):
     specs.mkdir()
     plans.mkdir()
     spec_assistant.mkdir()
+    elicitations.mkdir()
 
     return {
         "prds": prds,
         "specs": specs,
         "plans": plans,
         "spec_assistant": spec_assistant,
+        "elicitations": elicitations,
         "index": index,
         "instructions": instructions,
     }
@@ -51,6 +54,7 @@ def mcp_and_prompts(dirs):
         patch("mcp_assistant.prompts.templates.SPECS_DIR", dirs["specs"]),
         patch("mcp_assistant.prompts.templates.PLANS_DIR", dirs["plans"]),
         patch("mcp_assistant.prompts.templates.SPEC_ASSISTANT_DIR", dirs["spec_assistant"]),
+        patch("mcp_assistant.prompts.templates.ELICITATIONS_DIR", dirs["elicitations"]),
         patch("mcp_assistant.prompts.templates.INDEX_FILE", dirs["index"]),
         patch("mcp_assistant.prompts.templates.COPILOT_INSTRUCTIONS", dirs["instructions"]),
     ):
@@ -179,3 +183,33 @@ def test_review_artefact_plan(mcp_and_prompts):
     (dirs["plans"] / "plan-foo.md").write_text("# Plan to Review")
     result = mcp.prompts["review_artefact"]("plan-foo.md", "plan")
     assert "Plan to Review" in result[0].content.text
+
+
+# --- prd_from_idea with context_filename ---
+
+
+def test_prd_from_idea_without_context(mcp_and_prompts):
+    mcp, _ = mcp_and_prompts
+    result = mcp.prompts["prd_from_idea"]("Add dark mode")
+    assert "# New Idea" in result[0].content.text
+    assert "ENRICHED ARCHITECTURAL CONTEXT" not in result[0].content.text
+
+
+def test_prd_from_idea_with_context(mcp_and_prompts):
+    mcp, dirs = mcp_and_prompts
+    (dirs["elicitations"] / "context-foo.md").write_text("# Architecture details")
+    result = mcp.prompts["prd_from_idea"]("Add dark mode", context_filename="context-foo.md")
+    assert "ENRICHED ARCHITECTURAL CONTEXT" in result[0].content.text
+    assert "Architecture details" in result[0].content.text
+
+
+def test_prd_from_idea_context_not_found(mcp_and_prompts):
+    mcp, _ = mcp_and_prompts
+    with pytest.raises(FileNotFoundError, match="context-nonexistent.md"):
+        mcp.prompts["prd_from_idea"]("idea", context_filename="context-nonexistent.md")
+
+
+def test_prd_from_idea_context_path_traversal(mcp_and_prompts):
+    mcp, _ = mcp_and_prompts
+    with pytest.raises(ValueError, match="Invalid context_filename"):
+        mcp.prompts["prd_from_idea"]("idea", context_filename="../../../etc/passwd")

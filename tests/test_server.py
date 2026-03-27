@@ -59,19 +59,28 @@ EXPECTED_TOOLS = {
     "check_duplicate",
     "list_artefacts",
     "sync_index",
+    "map_repository_context",
+    "run_expert_elicitation",
+    "consolidate_technical_context",
 }
 
 
 def test_all_expected_tools_are_registered():
     """Use CaptureMCP to verify every tool is registered when register() is called."""
     import mcp_assistant.tools.artifacts as artifacts_module
+    import mcp_assistant.tools.elicitation as elicitation_module
     import mcp_assistant.tools.workflow as workflow_module
 
     class CaptureMCP:
         def __init__(self):
             self.tools: dict = {}
 
-        def tool(self):
+        def tool(self, fn=None):
+            # Supports both mcp.tool()(fn) and mcp.tool(fn)
+            if fn is not None:
+                self.tools[fn.__name__] = fn
+                return fn
+
             def decorator(fn):
                 self.tools[fn.__name__] = fn
                 return fn
@@ -80,6 +89,7 @@ def test_all_expected_tools_are_registered():
 
     mcp = CaptureMCP()
     artifacts_module.register(mcp)
+    elicitation_module.register(mcp)
     workflow_module.register(mcp)
 
     missing = EXPECTED_TOOLS - set(mcp.tools.keys())
@@ -98,8 +108,10 @@ EXPECTED_RESOURCES = {
     "flow://specs",
     "flow://plans",
     "flow://prd/{filename}",
-    "flow://spec/{filename}",
+    "flow://spec/{prd_slug}/{spec_name}",
     "flow://plan/{filename}",
+    "flow://elicitations",
+    "flow://elicitation/{filename}",
 }
 
 
@@ -191,6 +203,7 @@ def test_server_instructions_describe_workflow():
 
 def test_no_tool_name_collisions():
     import mcp_assistant.tools.artifacts as artifacts_module
+    import mcp_assistant.tools.elicitation as elicitation_module
     import mcp_assistant.tools.workflow as workflow_module
 
     class CaptureMCP:
@@ -198,17 +211,21 @@ def test_no_tool_name_collisions():
             self.tools: dict = {}
             self.collisions: list = []
 
-        def tool(self):
-            def decorator(fn):
-                if fn.__name__ in self.tools:
-                    self.collisions.append(fn.__name__)
-                self.tools[fn.__name__] = fn
-                return fn
+        def tool(self, fn=None):
+            # Supports both mcp.tool()(fn) and mcp.tool(fn)
+            def _register(f):
+                if f.__name__ in self.tools:
+                    self.collisions.append(f.__name__)
+                self.tools[f.__name__] = f
+                return f
 
-            return decorator
+            if fn is not None:
+                return _register(fn)
+            return _register
 
     mcp = CaptureMCP()
     artifacts_module.register(mcp)
+    elicitation_module.register(mcp)
     workflow_module.register(mcp)
 
     assert mcp.collisions == [], f"Tool name collisions detected: {mcp.collisions}"

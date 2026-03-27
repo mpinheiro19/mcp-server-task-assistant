@@ -6,10 +6,10 @@ import mcp_assistant.tools.workflow as workflow_module
 from mcp_assistant.utils import _parse_index_table
 
 INDEX_CONTENT = """\
-| PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |
-| :--- | :--- | :--- | :--- | :--- |
-| prd-foo.md | spec-foo.md | Foo Feature | 🟢 Done | ✅ Concluído |
-| prd-bar.md | spec-bar.md | Bar Feature | 🟡 Pending | ❌ Todo |
+| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| prd-foo.md | spec-foo.md | Foo Feature | 🟢 Done | — | ✅ Concluído |
+| prd-bar.md | spec-bar.md | Bar Feature | 🟡 Pending | — | ❌ Todo |
 """
 
 
@@ -108,7 +108,7 @@ def test_check_duplicate_finds_match(tmp_path):
     mcp = CaptureMCP()
     prds = tmp_path / "prds"
     prds.mkdir()
-    (prds / "prd-nova-feature.md").write_text("# existing")
+    (prds / "nova-feature.md").write_text("# existing")
     with (
         patch("mcp_assistant.tools.workflow.PRDS_DIR", prds),
         patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
@@ -118,7 +118,7 @@ def test_check_duplicate_finds_match(tmp_path):
         workflow_module.register(mcp)
         result = mcp.tools["check_duplicate"]("Nova Feature")
     assert result["has_duplicate"] is True
-    assert any("prd-nova-feature.md" in m for m in result["matches"])
+    assert any("nova-feature.md" in m for m in result["matches"])
 
 
 # --- update_index ---
@@ -167,9 +167,10 @@ def mcp_with_artefacts(tmp_path):
     prds.mkdir()
     specs.mkdir()
     plans.mkdir()
-    (prds / "prd-alpha.md").write_text("# PRD Alpha")
-    (specs / "spec-alpha.md").write_text("# Spec Alpha")
-    (plans / "plan-alpha.md").write_text("# Plan Alpha")
+    (prds / "alpha.md").write_text("# PRD Alpha")
+    (specs / "alpha").mkdir()
+    (specs / "alpha" / "detail.md").write_text("# Spec Alpha")
+    (plans / "alpha.md").write_text("# Plan Alpha")
     index = tmp_path / "index.md"
     index.write_text(INDEX_CONTENT)
     with (
@@ -185,7 +186,7 @@ def mcp_with_artefacts(tmp_path):
 def test_list_artefacts_prd(mcp_with_artefacts):
     result = mcp_with_artefacts.tools["list_artefacts"]("prd")
     assert len(result) == 1
-    assert result[0]["filename"] == "prd-alpha.md"
+    assert result[0]["filename"] == "alpha.md"
     assert "size_bytes" in result[0]
     assert "modified_at" in result[0]
 
@@ -193,13 +194,13 @@ def test_list_artefacts_prd(mcp_with_artefacts):
 def test_list_artefacts_spec(mcp_with_artefacts):
     result = mcp_with_artefacts.tools["list_artefacts"]("spec")
     assert len(result) == 1
-    assert result[0]["filename"] == "spec-alpha.md"
+    assert result[0]["filename"] == "alpha/detail.md"
 
 
 def test_list_artefacts_plan(mcp_with_artefacts):
     result = mcp_with_artefacts.tools["list_artefacts"]("plan")
     assert len(result) == 1
-    assert result[0]["filename"] == "plan-alpha.md"
+    assert result[0]["filename"] == "alpha.md"
 
 
 def test_list_artefacts_all(mcp_with_artefacts):
@@ -238,7 +239,7 @@ def test_sync_index_adds_missing_prd(tmp_path):
     mcp = CaptureMCP()
     prds = tmp_path / "prds"
     prds.mkdir()
-    (prds / "prd-nova-feature.md").write_text("# PRD")
+    (prds / "nova-feature.md").write_text("# PRD")
     index_file = tmp_path / "index.md"
     with (
         patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
@@ -248,7 +249,7 @@ def test_sync_index_adds_missing_prd(tmp_path):
     ):
         workflow_module.register(mcp)
         result = mcp.tools["sync_index"]()
-    assert "prd-nova-feature.md" in result["added"]
+    assert "nova-feature.md" in result["added"]
     rows = _parse_index_table(index_file.read_text())
     assert len(rows) == 1
     assert rows[0]["plan_status"] == "⏳ Waiting for Spec"
@@ -260,14 +261,14 @@ def test_sync_index_updates_spec_field(tmp_path):
     prds = tmp_path / "prds"
     prds.mkdir()
     specs = tmp_path / "specs"
-    specs.mkdir()
-    (prds / "prd-foo.md").write_text("# PRD")
-    (specs / "spec-foo-bar.md").write_text("# Spec")
+    (prds / "foo.md").write_text("# PRD")
+    (specs / "foo").mkdir(parents=True)
+    (specs / "foo" / "bar.md").write_text("# Spec")
     index_file = tmp_path / "index.md"
     index_file.write_text(
-        "| PRD Origem | Spec (Arquivo) | Feature | Plan Status | Implementation |\n"
-        "| :--- | :--- | :--- | :--- | :--- |\n"
-        "| prd-foo.md |  | Foo | ⏳ Waiting for Spec | ❌ Todo |\n"
+        "| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |\n"
+        "| :--- | :--- | :--- | :--- | :--- | :--- |\n"
+        "| foo.md |  | Foo | ⏳ Waiting for Spec | — | ❌ Todo |\n"
     )
     with (
         patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
@@ -277,8 +278,172 @@ def test_sync_index_updates_spec_field(tmp_path):
     ):
         workflow_module.register(mcp)
         result = mcp.tools["sync_index"]()
-    assert "prd-foo.md" in result["updated"]
+    assert "foo.md" in result["updated"]
+    rows = _parse_index_table(index_file.read_text())
+    foo = next(r for r in rows if r["prd"] == "foo.md")
+    assert foo["spec"] == "foo/bar.md"
+    assert foo["plan_status"] == "🟡 Spec Draft"
+
+
+# ---------------------------------------------------------------------------
+# Elicitation column tests
+# ---------------------------------------------------------------------------
+
+INDEX_6COL = """\
+| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| prd-foo.md | spec-foo.md | Foo Feature | 🟢 Done | ✅ Consolidated | ✅ Concluído |
+| prd-bar.md | spec-bar.md | Bar Feature | 🟡 Pending | ⏳ Pending | ❌ Todo |
+"""
+
+INDEX_5COL_LEGACY = """\
+| PRD Source | Spec (File) | Feature | Plan Status | Implementation |
+| :--- | :--- | :--- | :--- | :--- |
+| prd-foo.md | spec-foo.md | Foo Feature | 🟢 Done | ✅ Concluído |
+| prd-bar.md | spec-bar.md | Bar Feature | 🟡 Pending | ❌ Todo |
+"""
+
+
+def test_parse_index_table_5col_backward_compat():
+    rows = _parse_index_table(INDEX_5COL_LEGACY)
+    assert len(rows) == 2
+    for row in rows:
+        assert row["elicitation"] == "—"
+
+
+def test_parse_index_table_6col():
+    rows = _parse_index_table(INDEX_6COL)
+    foo = next(r for r in rows if r["prd"] == "prd-foo.md")
+    bar = next(r for r in rows if r["prd"] == "prd-bar.md")
+    assert foo["elicitation"] == "✅ Consolidated"
+    assert bar["elicitation"] == "⏳ Pending"
+
+
+def test_update_index_with_elicitation_column(tmp_path):
+    mcp = CaptureMCP()
+    index_file = tmp_path / "index.md"
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", tmp_path / "prds"),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        mcp.tools["update_index"](
+            "prd-new.md",
+            "spec-new.md",
+            "New Feature",
+            "🟡 Pending",
+            "❌ Todo",
+            elicitation_status="⏳ Pending",
+            force=True,
+        )
+    content = index_file.read_text()
+    assert "⏳ Pending" in content
+
+
+def test_update_index_preserves_elicitation(tmp_path):
+    mcp = CaptureMCP()
+    index_file = tmp_path / "index.md"
+    index_file.write_text(INDEX_6COL)
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", tmp_path / "prds"),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        # Call with default elicitation_status="—" — should NOT overwrite existing value
+        mcp.tools["update_index"](
+            "prd-foo.md",
+            "spec-foo.md",
+            "Foo Feature",
+            "🟢 Done",
+            "✅ Concluído",
+            force=True,
+        )
     rows = _parse_index_table(index_file.read_text())
     foo = next(r for r in rows if r["prd"] == "prd-foo.md")
-    assert foo["spec"] == "spec-foo-bar.md"
-    assert foo["plan_status"] == "🟡 Spec Draft"
+    assert foo["elicitation"] == "✅ Consolidated"
+
+
+def test_get_workflow_status_includes_elicitation(tmp_path):
+    mcp = CaptureMCP()
+    index_file = tmp_path / "index.md"
+    index_file.write_text(INDEX_6COL)
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", tmp_path / "prds"),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        result = mcp.tools["get_workflow_status"]()
+    for feature in result["features"]:
+        assert "elicitation" in feature
+
+
+def test_advance_stage_preserves_elicitation(tmp_path):
+    mcp = CaptureMCP()
+    index_file = tmp_path / "index.md"
+    index_file.write_text(INDEX_6COL)
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", tmp_path / "prds"),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", tmp_path / "specs"),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        mcp.tools["advance_stage"]("Foo Feature", "🟢 Done", "✅ Concluído")
+    rows = _parse_index_table(index_file.read_text())
+    foo = next(r for r in rows if r["feature"] == "Foo Feature")
+    assert foo["elicitation"] == "✅ Consolidated"
+
+
+def test_sync_index_preserves_elicitation(tmp_path):
+    mcp = CaptureMCP()
+    prds = tmp_path / "prds"
+    prds.mkdir()
+    specs = tmp_path / "specs"
+    (prds / "foo.md").write_text("# PRD")
+    (specs / "foo").mkdir(parents=True)
+    (specs / "foo" / "bar.md").write_text("# Spec")
+    index_file = tmp_path / "index.md"
+    index_file.write_text(
+        "| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |\n"
+        "| :--- | :--- | :--- | :--- | :--- | :--- |\n"
+        "| foo.md |  | Foo | ⏳ Waiting for Spec | ✅ Consolidated | ❌ Todo |\n"
+    )
+    with (
+        patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file),
+        patch("mcp_assistant.tools.workflow.PRDS_DIR", prds),
+        patch("mcp_assistant.tools.workflow.SPECS_DIR", specs),
+        patch("mcp_assistant.tools.workflow.PLANS_DIR", tmp_path / "plans"),
+    ):
+        workflow_module.register(mcp)
+        mcp.tools["sync_index"]()
+    rows = _parse_index_table(index_file.read_text())
+    foo = next(r for r in rows if r["prd"] == "foo.md")
+    assert foo["elicitation"] == "✅ Consolidated"
+
+
+def test_get_index_row_by_feature_found(tmp_path):
+    index_file = tmp_path / "index.md"
+    index_file.write_text(INDEX_6COL)
+    with patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file):
+        import mcp_assistant.tools.workflow as wf
+
+        row = wf._get_index_row_by_feature("Foo Feature")
+    assert row is not None
+    assert row["prd"] == "prd-foo.md"
+    assert row["elicitation"] == "✅ Consolidated"
+
+
+def test_get_index_row_by_feature_not_found(tmp_path):
+    index_file = tmp_path / "index.md"
+    index_file.write_text(INDEX_6COL)
+    with patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file):
+        import mcp_assistant.tools.workflow as wf
+
+        row = wf._get_index_row_by_feature("Nonexistent Feature")
+    assert row is None

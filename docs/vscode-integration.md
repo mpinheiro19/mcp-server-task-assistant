@@ -1,7 +1,7 @@
 # VS Code Copilot Integration Example
 
 This guide shows how to wire `mcp-assistant` into VS Code Copilot so that the
-**PRD → Spec → Plan** tools are available directly inside chat and agent requests.
+**Elicitation → PRD → Spec → Plan** tools are available directly inside chat and agent requests.
 
 ---
 
