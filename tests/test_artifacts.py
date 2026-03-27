@@ -215,6 +215,8 @@ def mock_ctx():
     ctx = MagicMock()
     ctx.elicit = AsyncMock()
     ctx.sample = AsyncMock()
+    ctx.info = AsyncMock()
+    ctx.report_progress = AsyncMock()
     return ctx
 
 

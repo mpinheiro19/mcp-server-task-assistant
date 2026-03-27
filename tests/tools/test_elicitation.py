@@ -554,6 +554,8 @@ async def test_collect_pre_prd_fallback_questions_on_sample_failure(fake_dirs):
 
     ctx = MagicMock()
     ctx.sample = AM(side_effect=Exception("sampling failed"))
+    ctx.info = AM(return_value=None)
+    ctx.report_progress = AM(return_value=None)
     answers_mock = MagicMock()
     answers_mock.answer_1 = "An answer"
     answers_mock.answer_2 = "Another answer"
