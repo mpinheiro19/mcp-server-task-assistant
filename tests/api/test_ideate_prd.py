@@ -86,9 +86,9 @@ async def test_ideate_prd_happy_path_returns_draft(_mcp_env):
     mcp, dirs = _mcp_env
     elicitation = _make_elicitation_handler(
         [
-            {"value": "Integration Feature"},   # title
-            {"run_elicitation": False},          # choice: skip pre-PRD elicitation
-            _DETAILS_RESPONSE,                   # details
+            {"value": "Integration Feature"},  # title
+            {"run_elicitation": False},  # choice: skip pre-PRD elicitation
+            _DETAILS_RESPONSE,  # details
         ]
     )
 
@@ -123,9 +123,9 @@ async def test_ideate_prd_sampling_fallback(_mcp_env):
     mcp, dirs = _mcp_env
     elicitation = _make_elicitation_handler(
         [
-            {"value": "Fallback Feature"},   # title
-            {"run_elicitation": False},       # choice: skip pre-PRD elicitation
-            _DETAILS_RESPONSE,               # details
+            {"value": "Fallback Feature"},  # title
+            {"run_elicitation": False},  # choice: skip pre-PRD elicitation
+            _DETAILS_RESPONSE,  # details
         ]
     )
 
@@ -212,9 +212,9 @@ async def test_ideate_prd_with_project_path(_mcp_env, tmp_path):
     details_with_path = {**_DETAILS_RESPONSE, "project_path": str(project)}
     elicitation = _make_elicitation_handler(
         [
-            {"value": "Project Feature"},   # title
-            {"run_elicitation": False},      # choice: skip pre-PRD elicitation
-            details_with_path,               # details
+            {"value": "Project Feature"},  # title
+            {"run_elicitation": False},  # choice: skip pre-PRD elicitation
+            details_with_path,  # details
         ]
     )
 

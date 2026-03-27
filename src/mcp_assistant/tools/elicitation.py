@@ -17,7 +17,7 @@ from fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field, create_model
 
 from mcp_assistant.config import ELICITATION_MAX_DEPTH, ELICITATIONS_DIR, PROJECT_ROOT
-from mcp_assistant.logging_config import LOG_PREVIEW_CHARS, log_operation
+from mcp_assistant.logging_config import LOG_PREVIEW_CHARS
 from mcp_assistant.utils import _slugify
 
 logger = logging.getLogger(__name__)
@@ -450,9 +450,7 @@ async def run_expert_elicitation(
     sampling_used = False
     questions: list[str] = []
 
-    logger.info(
-        "llm_sampling_start tool=run_expert_elicitation feature=%s", feature_name
-    )
+    logger.info("llm_sampling_start tool=run_expert_elicitation feature=%s", feature_name)
     try:
         result = await ctx.sample(
             _build_elicitation_prompt(feature_name, prd_draft, repo_ctx, num_questions)
@@ -461,12 +459,14 @@ async def run_expert_elicitation(
         sampling_used = True
         logger.info(
             "llm_sampling_end tool=run_expert_elicitation status=ok feature=%s questions=%d",
-            feature_name, len(questions),
+            feature_name,
+            len(questions),
         )
     except Exception as exc:
         logger.warning(
             "llm_sampling_end tool=run_expert_elicitation status=fallback feature=%s error=%r",
-            feature_name, str(exc),
+            feature_name,
+            str(exc),
         )
         questions = _default_questions(feature_name, num_questions)
 
@@ -499,7 +499,10 @@ async def run_expert_elicitation(
     size = file_path.stat().st_size
     logger.info(
         "elicitation_written feature=%s filename=%s size_bytes=%d questions=%d",
-        feature_name, file_path.name, size, len(questions),
+        feature_name,
+        file_path.name,
+        size,
+        len(questions),
     )
     logger.debug(
         "content_preview tool=run_expert_elicitation chars=%d preview=%r",
@@ -511,7 +514,8 @@ async def run_expert_elicitation(
 
     logger.info(
         "end op=run_expert_elicitation status=ok feature=%s saved=True sampling_used=%s",
-        feature_name, sampling_used,
+        feature_name,
+        sampling_used,
     )
     return {
         "saved": True,
@@ -549,14 +553,16 @@ async def consolidate_technical_context(
     """
     logger.info(
         "start op=consolidate_technical_context feature=%s elicitation=%s",
-        feature_name, elicitation_filename,
+        feature_name,
+        elicitation_filename,
     )
 
     elicitation_path = ELICITATIONS_DIR / elicitation_filename
     if not elicitation_path.resolve().is_relative_to(ELICITATIONS_DIR.resolve()):
         logger.warning(
             "path_traversal_blocked tool=consolidate requested=%s resolved=%s",
-            elicitation_filename, elicitation_path.resolve(),
+            elicitation_filename,
+            elicitation_path.resolve(),
         )
         raise ValueError(f"Invalid filename: '{elicitation_filename}'")
     if not elicitation_path.exists():
@@ -581,7 +587,8 @@ async def consolidate_technical_context(
 
     logger.debug(
         "consolidate_technical_context answers_found count=%d elicitation=%s",
-        len(answers), elicitation_filename,
+        len(answers),
+        elicitation_filename,
     )
 
     prd_draft = _extract_prd_draft(content)
@@ -592,21 +599,21 @@ async def consolidate_technical_context(
     repo_ctx = RepositoryContext(**repo_ctx_dict)
 
     sampling_used = False
-    logger.info(
-        "llm_sampling_start tool=consolidate_technical_context feature=%s", feature_name
-    )
+    logger.info("llm_sampling_start tool=consolidate_technical_context feature=%s", feature_name)
     try:
         result = await ctx.sample(_build_consolidation_prompt(prd_draft, answers, repo_ctx))
         context_content = result.text
         sampling_used = True
         logger.info(
             "llm_sampling_end tool=consolidate_technical_context status=ok feature=%s chars=%d",
-            feature_name, len(context_content),
+            feature_name,
+            len(context_content),
         )
     except Exception as exc:
         logger.warning(
             "llm_sampling_end tool=consolidate_technical_context status=fallback feature=%s error=%r",
-            feature_name, str(exc),
+            feature_name,
+            str(exc),
         )
         context_content = _render_fallback_context(prd_draft, answers, repo_ctx)
 
@@ -629,14 +636,17 @@ patterns:
     size = context_path.stat().st_size
     logger.info(
         "context_written feature=%s filename=%s size_bytes=%d",
-        feature_name, context_path.name, size,
+        feature_name,
+        context_path.name,
+        size,
     )
 
     _update_elicitation_index(slug, feature_name, context_path.name, "✅ Consolidated")
 
     logger.info(
         "end op=consolidate_technical_context status=ok feature=%s saved=True sampling_used=%s",
-        feature_name, sampling_used,
+        feature_name,
+        sampling_used,
     )
     return {
         "saved": True,
@@ -682,9 +692,7 @@ async def collect_pre_prd_elicitation(
     repo_ctx = RepositoryContext(**repo_ctx_dict)
 
     questions: list[str] = []
-    logger.info(
-        "llm_sampling_start tool=collect_pre_prd_elicitation feature=%s", feature_name
-    )
+    logger.info("llm_sampling_start tool=collect_pre_prd_elicitation feature=%s", feature_name)
     await ctx.info(f"Generating discovery questions for '{feature_name}'...")
     await ctx.report_progress(0, message="Generating discovery questions...")
     try:
@@ -729,9 +737,7 @@ async def collect_pre_prd_elicitation(
             qa_pairs.append(f"**Q{i + 1}: {question}**\nA: {answer.strip()}")
 
     if not qa_pairs:
-        logger.info(
-            "collect_pre_prd_elicitation no_answers feature=%s", feature_name
-        )
+        logger.info("collect_pre_prd_elicitation no_answers feature=%s", feature_name)
         return ""
 
     enriched = (

@@ -84,9 +84,7 @@ def test_create_plan_duplicate_raises(mcp_and_tools):
     mcp, dirs = mcp_and_tools
     mcp.tools["create_plan"]("Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Plan")
     with pytest.raises(ValueError, match="already exists"):
-        mcp.tools["create_plan"](
-            "Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Another Plan"
-        )
+        mcp.tools["create_plan"]("Deploy Pipeline", "some-prd/deploy-pipeline.md", "# Another Plan")
 
 
 # ---------------------------------------------------------------------------
@@ -224,9 +222,9 @@ def mock_ctx():
 async def test_ideate_prd_full_flow_returns_draft(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("My New Feature"),                            # title
-        _accepted(ElicitationChoice(run_elicitation=False)),   # choice: skip elicitation
-        _accepted(                                              # details
+        _accepted("My New Feature"),  # title
+        _accepted(ElicitationChoice(run_elicitation=False)),  # choice: skip elicitation
+        _accepted(  # details
             IdeaDetails(
                 problem_statement="A problem",
                 target_audience="Devs",
@@ -263,9 +261,9 @@ async def test_ideate_prd_cancel_at_title(mcp_and_tools, mock_ctx):
 async def test_ideate_prd_decline_at_details(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("Feature X"),                                 # title
-        _accepted(ElicitationChoice(run_elicitation=False)),   # choice: skip
-        _declined(),                                            # details
+        _accepted("Feature X"),  # title
+        _accepted(ElicitationChoice(run_elicitation=False)),  # choice: skip
+        _declined(),  # details
     ]
     result = await mcp.tools["ideate_prd"](mock_ctx)
     assert result["saved"] is False
@@ -302,10 +300,10 @@ async def test_ideate_prd_with_elicitation_enriches_prd(mcp_and_tools, mock_ctx)
     answers_mock.answer_3 = "No major risks"
 
     mock_ctx.elicit.side_effect = [
-        _accepted("Elicited Feature"),                          # title
-        _accepted(ElicitationChoice(run_elicitation=True)),    # choice: run elicitation
-        _accepted(answers_mock),                                # discovery answers
-        _accepted(                                              # details
+        _accepted("Elicited Feature"),  # title
+        _accepted(ElicitationChoice(run_elicitation=True)),  # choice: run elicitation
+        _accepted(answers_mock),  # discovery answers
+        _accepted(  # details
             IdeaDetails(
                 problem_statement="A problem",
                 target_audience="Devs",
@@ -316,7 +314,9 @@ async def test_ideate_prd_with_elicitation_enriches_prd(mcp_and_tools, mock_ctx)
     ]
 
     questions_result = MagicMock()
-    questions_result.text = "1. How does this integrate?\n2. Any patterns to follow?\n3. Main risks?"
+    questions_result.text = (
+        "1. How does this integrate?\n2. Any patterns to follow?\n3. Main risks?"
+    )
     prd_result = MagicMock()
     prd_result.text = "# PRD: Elicited Feature\n\n## Problem Statement\nA problem"
     mock_ctx.sample.side_effect = [questions_result, prd_result]
@@ -334,10 +334,10 @@ async def test_ideate_prd_elicitation_declined_proceeds_without_enrichment(mcp_a
     mcp, dirs = mcp_and_tools
 
     mock_ctx.elicit.side_effect = [
-        _accepted("Feature Y"),                                 # title
-        _accepted(ElicitationChoice(run_elicitation=True)),    # choice: run elicitation
-        _declined(),                                            # discovery answers: declined
-        _accepted(                                              # details
+        _accepted("Feature Y"),  # title
+        _accepted(ElicitationChoice(run_elicitation=True)),  # choice: run elicitation
+        _declined(),  # discovery answers: declined
+        _accepted(  # details
             IdeaDetails(
                 problem_statement="Some problem",
                 target_audience="Users",

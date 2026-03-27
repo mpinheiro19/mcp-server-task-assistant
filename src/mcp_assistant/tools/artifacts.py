@@ -7,12 +7,12 @@ from pydantic import BaseModel, Field
 from mcp_assistant.config import PLANS_DIR, PRDS_DIR, SPECS_DIR
 from mcp_assistant.logging_config import LOG_PREVIEW_CHARS, log_operation
 from mcp_assistant.prompts.templates import _build_prd_prompt
+from mcp_assistant.tools.elicitation import collect_pre_prd_elicitation
 from mcp_assistant.tools.workflow import (
     _get_index_row_by_prd,
     _get_index_row_by_spec,
     _update_index,
 )
-from mcp_assistant.tools.elicitation import collect_pre_prd_elicitation
 from mcp_assistant.utils import _gather_workspace_context, _slugify
 
 logger = logging.getLogger(__name__)
@@ -210,9 +210,7 @@ def register(mcp) -> None:
                         existing["implementation"],
                     )
                 else:
-                    logger.warning(
-                        "spec_not_in_index spec=%s plan=%s", spec_filename, filename
-                    )
+                    logger.warning("spec_not_in_index spec=%s plan=%s", spec_filename, filename)
                     result["index_warning"] = (
                         f"Spec '{spec_filename}' not found in index.md; " "entry not updated."
                     )
@@ -326,9 +324,7 @@ def register(mcp) -> None:
         # Step 5 — gather workspace context (used when elicitation was skipped)
         logger.debug("ideate_prd step=5 action=gather_workspace_context")
         codebase_context = _gather_workspace_context(details.project_path)
-        logger.debug(
-            "ideate_prd step=5 workspace_context_chars=%d", len(codebase_context)
-        )
+        logger.debug("ideate_prd step=5 workspace_context_chars=%d", len(codebase_context))
 
         # Step 6 — build rich idea description from all IdeaDetails fields
         idea_parts = [

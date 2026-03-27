@@ -1,24 +1,18 @@
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import mcp_assistant.resources.flow as flow_module
-import mcp_assistant.tools.elicitation as elicitation_module
-from unittest.mock import MagicMock
-
 from mcp_assistant.tools.elicitation import (
     RepositoryContext,
     _build_pre_prd_discovery_prompt,
-    _extract_answers,
     _make_answers_model,
-    _parse_questions,
     collect_pre_prd_elicitation,
     consolidate_technical_context,
     map_repository_context,
     run_expert_elicitation,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -256,19 +250,17 @@ def _make_elicitation_file(elicitations_dir, slug, root, answers=None):
 
 @pytest.mark.asyncio
 async def test_consolidate_creates_context_file(fake_dirs, mock_ctx, sample_repo):
-    mock_ctx.sample = AsyncMock(
-        return_value=AsyncMock(text="## Summary\nConsolidated context.")
-    )
+    mock_ctx.sample = AsyncMock(return_value=AsyncMock(text="## Summary\nConsolidated context."))
     _make_elicitation_file(
         fake_dirs["elicitations"],
         "test-feature",
         str(sample_repo),
-        answers=[("How does this integrate?", "Via the existing plugin interface."),
-                 ("Error handling?", "Use structured exceptions.")],
+        answers=[
+            ("How does this integrate?", "Via the existing plugin interface."),
+            ("Error handling?", "Use structured exceptions."),
+        ],
     )
-    result = await consolidate_technical_context(
-        mock_ctx, "Test Feature", "test-feature.md"
-    )
+    result = await consolidate_technical_context(mock_ctx, "Test Feature", "test-feature.md")
     assert result["saved"] is True
     assert (fake_dirs["elicitations"] / result["context_filename"]).exists()
     assert result["context_filename"] == "context-test-feature.md"
@@ -277,9 +269,7 @@ async def test_consolidate_creates_context_file(fake_dirs, mock_ctx, sample_repo
 @pytest.mark.asyncio
 async def test_consolidate_fails_on_empty_answers(fake_dirs, mock_ctx, sample_repo):
     _make_elicitation_file(fake_dirs["elicitations"], "no-answers", str(sample_repo))
-    result = await consolidate_technical_context(
-        mock_ctx, "No Answers", "no-answers.md"
-    )
+    result = await consolidate_technical_context(mock_ctx, "No Answers", "no-answers.md")
     assert result["saved"] is False
     assert "reason" in result
     assert "No answers found" in result["reason"]
@@ -296,43 +286,33 @@ async def test_consolidate_fails_on_missing_file(fake_dirs, mock_ctx):
 async def test_consolidate_path_traversal(fake_dirs, mock_ctx):
     fake_dirs["elicitations"].mkdir(parents=True, exist_ok=True)
     with pytest.raises(ValueError, match="Invalid filename"):
-        await consolidate_technical_context(
-            mock_ctx, "Evil", "../../../etc/passwd"
-        )
+        await consolidate_technical_context(mock_ctx, "Evil", "../../../etc/passwd")
 
 
 @pytest.mark.asyncio
 async def test_consolidate_frontmatter_present(fake_dirs, mock_ctx, sample_repo):
-    mock_ctx.sample = AsyncMock(
-        return_value=AsyncMock(text="## Summary\nContext.")
-    )
+    mock_ctx.sample = AsyncMock(return_value=AsyncMock(text="## Summary\nContext."))
     _make_elicitation_file(
         fake_dirs["elicitations"],
         "with-fm",
         str(sample_repo),
         answers=[("Q1?", "A1."), ("Q2?", "A2.")],
     )
-    result = await consolidate_technical_context(
-        mock_ctx, "With Fm", "with-fm.md"
-    )
+    result = await consolidate_technical_context(mock_ctx, "With Fm", "with-fm.md")
     content = (fake_dirs["elicitations"] / result["context_filename"]).read_text()
     assert content.startswith("---")
 
 
 @pytest.mark.asyncio
 async def test_consolidate_sampling_used(fake_dirs, mock_ctx, sample_repo):
-    mock_ctx.sample = AsyncMock(
-        return_value=AsyncMock(text="## Summary\nLLM-generated context.")
-    )
+    mock_ctx.sample = AsyncMock(return_value=AsyncMock(text="## Summary\nLLM-generated context."))
     _make_elicitation_file(
         fake_dirs["elicitations"],
         "sampling-test",
         str(sample_repo),
         answers=[("Q1?", "A1."), ("Q2?", "A2.")],
     )
-    result = await consolidate_technical_context(
-        mock_ctx, "Sampling Test", "sampling-test.md"
-    )
+    result = await consolidate_technical_context(mock_ctx, "Sampling Test", "sampling-test.md")
     assert result["sampling_used"] is True
 
 
@@ -345,27 +325,21 @@ async def test_consolidate_fallback(fake_dirs, mock_ctx, sample_repo):
         str(sample_repo),
         answers=[("Q1?", "A1."), ("Q2?", "A2.")],
     )
-    result = await consolidate_technical_context(
-        mock_ctx, "Fallback Test", "fallback-test.md"
-    )
+    result = await consolidate_technical_context(mock_ctx, "Fallback Test", "fallback-test.md")
     assert result["saved"] is True
     assert result["sampling_used"] is False
 
 
 @pytest.mark.asyncio
 async def test_consolidate_updates_index(fake_dirs, mock_ctx, sample_repo):
-    mock_ctx.sample = AsyncMock(
-        return_value=AsyncMock(text="## Summary\nContext.")
-    )
+    mock_ctx.sample = AsyncMock(return_value=AsyncMock(text="## Summary\nContext."))
     _make_elicitation_file(
         fake_dirs["elicitations"],
         "index-update",
         str(sample_repo),
         answers=[("Q1?", "A1."), ("Q2?", "A2.")],
     )
-    await consolidate_technical_context(
-        mock_ctx, "Index Update", "index-update.md"
-    )
+    await consolidate_technical_context(mock_ctx, "Index Update", "index-update.md")
     index_path = fake_dirs["elicitations"] / "index.md"
     assert "✅ Consolidated" in index_path.read_text()
 

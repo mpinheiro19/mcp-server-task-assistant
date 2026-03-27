@@ -11,7 +11,6 @@ import pytest
 
 from mcp_assistant.logging_config import JsonFormatter, log_operation, setup_logging
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -39,8 +38,7 @@ class TestSetupLogging:
         setup_logging()
         pkg = logging.getLogger("mcp_assistant")
         assert any(
-            isinstance(h, logging.StreamHandler) and h.stream is sys.stderr
-            for h in pkg.handlers
+            isinstance(h, logging.StreamHandler) and h.stream is sys.stderr for h in pkg.handlers
         )
 
     def test_default_level_is_info(self):
@@ -54,13 +52,16 @@ class TestSetupLogging:
         with patch.dict("os.environ", {"LOG_LEVEL": "DEBUG"}, clear=False):
             # Re-import constants to pick up env override
             import importlib
+
             import mcp_assistant.logging_config as lc
+
             importlib.reload(lc)
             lc.setup_logging()
         pkg = logging.getLogger("mcp_assistant")
         assert pkg.level == logging.DEBUG
         # Restore
         import mcp_assistant.logging_config as lc2
+
         importlib.reload(lc2)
 
     def test_does_not_add_duplicate_handlers(self):
@@ -78,12 +79,15 @@ class TestSetupLogging:
         _reset_pkg_logger()
         with patch.dict("os.environ", {"LOG_FORMAT": "json"}, clear=False):
             import importlib
+
             import mcp_assistant.logging_config as lc
+
             importlib.reload(lc)
             lc.setup_logging()
         pkg = logging.getLogger("mcp_assistant")
         assert any(isinstance(h.formatter, lc.JsonFormatter) for h in pkg.handlers)
         import mcp_assistant.logging_config as lc2
+
         importlib.reload(lc2)
 
     def test_fastmcp_logger_quietened(self):
@@ -125,6 +129,7 @@ class TestJsonFormatter:
             raise ValueError("boom")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
         record = logging.LogRecord(
             name="test",
@@ -199,9 +204,7 @@ class TestLogOperation:
             with log_operation(test_logger, "timed_op"):
                 pass
 
-        end_msg = next(
-            self._msg(r) for r in caplog.records if "end op=timed_op" in self._msg(r)
-        )
+        end_msg = next(self._msg(r) for r in caplog.records if "end op=timed_op" in self._msg(r))
         match = re.search(r"duration=(\d+)ms", end_msg)
         assert match is not None
         assert int(match.group(1)) >= 0

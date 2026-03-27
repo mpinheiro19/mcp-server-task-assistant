@@ -18,8 +18,8 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 # ---------------------------------------------------------------------------
 # Public constants — importable by other modules that need them

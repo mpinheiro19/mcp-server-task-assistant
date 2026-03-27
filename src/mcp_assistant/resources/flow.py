@@ -27,7 +27,9 @@ def register(mcp) -> None:
     @mcp.resource("flow://copilot-instructions")
     def get_copilot_instructions() -> str:
         """Governance protocol (copilot-instructions.md)"""
-        logger.debug("resource_access uri=flow://copilot-instructions path=%s", COPILOT_INSTRUCTIONS)
+        logger.debug(
+            "resource_access uri=flow://copilot-instructions path=%s", COPILOT_INSTRUCTIONS
+        )
         if not COPILOT_INSTRUCTIONS.exists():
             logger.info("resource_miss uri=flow://copilot-instructions")
             return "copilot-instructions.md not found."
@@ -79,7 +81,8 @@ def register(mcp) -> None:
         if not path.resolve().is_relative_to(PRDS_DIR.resolve()):
             logger.warning(
                 "path_traversal_blocked uri=flow://prd requested=%s resolved=%s",
-                filename, path.resolve(),
+                filename,
+                path.resolve(),
             )
             raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
@@ -95,7 +98,9 @@ def register(mcp) -> None:
         if not path.resolve().is_relative_to(SPECS_DIR.resolve()):
             logger.warning(
                 "path_traversal_blocked uri=flow://spec requested=%s/%s resolved=%s",
-                prd_slug, spec_name, path.resolve(),
+                prd_slug,
+                spec_name,
+                path.resolve(),
             )
             raise ValueError(f"Invalid path: '{prd_slug}/{spec_name}'")
         if not path.exists():
@@ -111,7 +116,8 @@ def register(mcp) -> None:
         if not path.resolve().is_relative_to(PLANS_DIR.resolve()):
             logger.warning(
                 "path_traversal_blocked uri=flow://plan requested=%s resolved=%s",
-                filename, path.resolve(),
+                filename,
+                path.resolve(),
             )
             raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():
@@ -141,7 +147,8 @@ def register(mcp) -> None:
         if not path.resolve().is_relative_to(ELICITATIONS_DIR.resolve()):
             logger.warning(
                 "path_traversal_blocked uri=flow://elicitation requested=%s resolved=%s",
-                filename, path.resolve(),
+                filename,
+                path.resolve(),
             )
             raise ValueError(f"Invalid filename: '{filename}'")
         if not path.exists():

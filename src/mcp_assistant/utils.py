@@ -55,7 +55,17 @@ def _parse_index_table(text: str) -> list[dict]:
                     "implementation": cols[5],
                 }
             )
-    schema = "5-col" if any(len(line.strip("|").split("|")) == 5 for line in text.splitlines() if line.strip().startswith("|") and not line.strip().startswith("| PRD") and not line.strip().startswith("| :")) else "6-col"
+    schema = (
+        "5-col"
+        if any(
+            len(line.strip("|").split("|")) == 5
+            for line in text.splitlines()
+            if line.strip().startswith("|")
+            and not line.strip().startswith("| PRD")
+            and not line.strip().startswith("| :")
+        )
+        else "6-col"
+    )
     logger.debug("_parse_index_table rows=%d schema=%s", len(features), schema)
     return features
 
@@ -63,7 +73,9 @@ def _parse_index_table(text: str) -> list[dict]:
 def _migrate_index_header_if_needed(content: str) -> str:
     """If index.md has the 5-column header, replace with 6-column header."""
     old_header = "| PRD Source | Spec (File) | Feature | Plan Status | Implementation |"
-    new_header = "| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |"
+    new_header = (
+        "| PRD Source | Spec (File) | Feature | Plan Status | Elicitation | Implementation |"
+    )
     old_sep = "| :--- | :--- | :--- | :--- | :--- |"
     new_sep = "| :--- | :--- | :--- | :--- | :--- | :--- |"
     migrated = content.replace(old_header, new_header).replace(old_sep, new_sep)
@@ -120,6 +132,8 @@ def _gather_workspace_context(project_path: str = "") -> str:
     truncated = result[:_MAX_TOTAL_CHARS]
     logger.debug(
         "_gather_workspace_context root=%s sections=%d chars=%d",
-        root, len(sections), len(truncated),
+        root,
+        len(sections),
+        len(truncated),
     )
     return truncated

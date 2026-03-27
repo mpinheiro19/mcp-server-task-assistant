@@ -43,9 +43,7 @@ def _update_index(
     """
     existing = _get_index_row_by_prd(prd_filename)
     effective_elicitation = (
-        existing["elicitation"]
-        if existing and elicitation_status == "—"
-        else elicitation_status
+        existing["elicitation"] if existing and elicitation_status == "—" else elicitation_status
     )
     new_row = (
         f"| {prd_filename} | {spec_filename} | {feature_name} "
@@ -56,7 +54,9 @@ def _update_index(
         INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
         content = _INDEX_HEADER + "\n" + new_row + "\n"
         INDEX_FILE.write_text(content)
-        logger.debug("index_created path=%s prd=%s feature=%s", INDEX_FILE, prd_filename, feature_name)
+        logger.debug(
+            "index_created path=%s prd=%s feature=%s", INDEX_FILE, prd_filename, feature_name
+        )
         return content
 
     text = INDEX_FILE.read_text()
@@ -85,7 +85,11 @@ def _update_index(
     action = "updated" if updated else "inserted"
     logger.debug(
         "index_row_%s prd=%s feature=%s plan_status=%s impl=%s",
-        action, prd_filename, feature_name, plan_status, implementation_status,
+        action,
+        prd_filename,
+        feature_name,
+        plan_status,
+        implementation_status,
     )
     return content
 
@@ -171,7 +175,9 @@ def sync_index() -> dict:
                 updated.append(row["prd"])
                 logger.info(
                     "sync_index pass=2 updated prd=%s spec=%s plan_status=%s",
-                    row["prd"], spec_fname, plan_status,
+                    row["prd"],
+                    spec_fname,
+                    plan_status,
                 )
                 continue
 
@@ -188,9 +194,7 @@ def sync_index() -> dict:
                     elicitation_status=row.get("elicitation", "—"),
                 )
                 updated.append(row["prd"])
-                logger.info(
-                    "sync_index pass=2 plan_found prd=%s plan_status=🟢 Done", row["prd"]
-                )
+                logger.info("sync_index pass=2 plan_found prd=%s plan_status=🟢 Done", row["prd"])
                 continue
 
         skipped.append(row["prd"])
@@ -198,7 +202,9 @@ def sync_index() -> dict:
 
     logger.info(
         "end op=sync_index status=ok added=%d updated=%d skipped=%d",
-        len(added), len(updated), len(skipped),
+        len(added),
+        len(updated),
+        len(skipped),
     )
     return {"added": added, "updated": updated, "skipped": skipped}
 
@@ -219,14 +225,19 @@ def register(mcp) -> None:
             features = _parse_index_table(text)
 
             done = sum(
-                1 for f in features if "✅" in f["implementation"] or "Concluído" in f["implementation"]
+                1
+                for f in features
+                if "✅" in f["implementation"] or "Concluído" in f["implementation"]
             )
             in_progress = sum(1 for f in features if "🔄" in f["implementation"])
             todo = sum(1 for f in features if "❌" in f["implementation"])
 
             logger.info(
                 "get_workflow_status rows=%d done=%d in_progress=%d todo=%d",
-                len(features), done, in_progress, todo,
+                len(features),
+                done,
+                in_progress,
+                todo,
             )
             return {
                 "features": features,
@@ -257,7 +268,11 @@ def register(mcp) -> None:
             )
         logger.info(
             "update_index forced prd=%s spec=%s feature=%s plan_status=%s impl=%s",
-            prd_filename, spec_filename, feature_name, plan_status, implementation_status,
+            prd_filename,
+            spec_filename,
+            feature_name,
+            plan_status,
+            implementation_status,
         )
         return _update_index(
             prd_filename,
@@ -299,7 +314,9 @@ def register(mcp) -> None:
 
         logger.info(
             "advance_stage feature=%s plan_status=%s impl=%s",
-            feature_name, plan_status, implementation_status,
+            feature_name,
+            plan_status,
+            implementation_status,
         )
         return _update_index(
             prd_filename=row["prd"],
@@ -346,7 +363,8 @@ def register(mcp) -> None:
         if has_dup:
             logger.info(
                 "check_duplicate feature=%s has_duplicate=True matches=%d",
-                feature_name, len(unique_matches),
+                feature_name,
+                len(unique_matches),
             )
         else:
             logger.debug("check_duplicate feature=%s has_duplicate=False", feature_name)

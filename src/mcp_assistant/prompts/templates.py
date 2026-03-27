@@ -38,9 +38,7 @@ the caller is responsible for persistence.\
 """
 
 
-def _build_prd_prompt(
-    idea_str: str, codebase_context: str = "", enriched_context: str = ""
-) -> str:
+def _build_prd_prompt(idea_str: str, codebase_context: str = "", enriched_context: str = "") -> str:
     """Build a prompt string for LLM-based PRD generation.
 
     This is used by both the ``prd_from_idea`` MCP prompt and the

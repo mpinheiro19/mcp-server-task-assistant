@@ -151,7 +151,10 @@ def test_get_spec_returns_content(mcp_and_dirs):
     mcp, dirs = mcp_and_dirs
     (dirs["specs"] / "prd-slug").mkdir(parents=True)
     (dirs["specs"] / "prd-slug" / "spec-foo.md").write_text("# Spec Foo")
-    assert mcp.resources["flow://spec/{prd_slug}/{spec_name}"]("prd-slug", "spec-foo.md") == "# Spec Foo"
+    assert (
+        mcp.resources["flow://spec/{prd_slug}/{spec_name}"]("prd-slug", "spec-foo.md")
+        == "# Spec Foo"
+    )
 
 
 def test_get_spec_missing_raises(mcp_and_dirs):

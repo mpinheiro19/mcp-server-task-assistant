@@ -432,6 +432,7 @@ def test_get_index_row_by_feature_found(tmp_path):
     index_file.write_text(INDEX_6COL)
     with patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file):
         import mcp_assistant.tools.workflow as wf
+
         row = wf._get_index_row_by_feature("Foo Feature")
     assert row is not None
     assert row["prd"] == "prd-foo.md"
@@ -443,5 +444,6 @@ def test_get_index_row_by_feature_not_found(tmp_path):
     index_file.write_text(INDEX_6COL)
     with patch("mcp_assistant.tools.workflow.INDEX_FILE", index_file):
         import mcp_assistant.tools.workflow as wf
+
         row = wf._get_index_row_by_feature("Nonexistent Feature")
     assert row is None
