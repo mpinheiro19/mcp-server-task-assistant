@@ -685,11 +685,14 @@ async def collect_pre_prd_elicitation(
     logger.info(
         "llm_sampling_start tool=collect_pre_prd_elicitation feature=%s", feature_name
     )
+    await ctx.info(f"Generating discovery questions for '{feature_name}'...")
+    await ctx.report_progress(0, message="Generating discovery questions...")
     try:
         result = await ctx.sample(
             _build_pre_prd_discovery_prompt(feature_name, repo_ctx, num_questions)
         )
         questions = _parse_questions(result.text, num_questions)
+        await ctx.report_progress(1, 1, message="Discovery questions ready!")
         logger.info(
             "llm_sampling_end tool=collect_pre_prd_elicitation status=ok feature=%s questions=%d",
             feature_name,

@@ -356,10 +356,13 @@ def register(mcp) -> None:
         # Step 7 — LLM sampling with fallback to basic template
         sampling_used = False
         logger.info("llm_sampling_start tool=ideate_prd feature=%s max_tokens=4096", feature_name)
+        await ctx.info(f"Generating PRD draft for '{feature_name}' using LLM...")
+        await ctx.report_progress(0, message="Generating PRD draft...")
         try:
             sample_result = await ctx.sample(prompt, max_tokens=4096)
             draft = sample_result.text or _render_prd_draft(feature_name, details)
             sampling_used = True
+            await ctx.report_progress(1, 1, message="PRD draft generated!")
             logger.info(
                 "llm_sampling_end tool=ideate_prd status=ok feature=%s draft_chars=%d",
                 feature_name,
