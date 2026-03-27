@@ -5,10 +5,15 @@ import pytest
 
 import mcp_assistant.resources.flow as flow_module
 import mcp_assistant.tools.elicitation as elicitation_module
+from unittest.mock import MagicMock
+
 from mcp_assistant.tools.elicitation import (
     RepositoryContext,
+    _build_pre_prd_discovery_prompt,
     _extract_answers,
+    _make_answers_model,
     _parse_questions,
+    collect_pre_prd_elicitation,
     consolidate_technical_context,
     map_repository_context,
     run_expert_elicitation,
@@ -423,3 +428,163 @@ def test_get_elicitation_not_found(flow_mcp_and_dirs):
     fn = mcp.resources["flow://elicitation/{filename}"]
     with pytest.raises(FileNotFoundError):
         fn("nonexistent.md")
+
+
+# ---------------------------------------------------------------------------
+# _build_pre_prd_discovery_prompt
+# ---------------------------------------------------------------------------
+
+
+def test_build_pre_prd_discovery_prompt_includes_feature_name():
+    repo_ctx = RepositoryContext(
+        root="/repo",
+        tree=["src/main.py"],
+        manifests={},
+        detected_stack=["Python", "FastMCP"],
+        detected_patterns=["Clean Architecture"],
+    )
+    prompt = _build_pre_prd_discovery_prompt("Dark Mode", repo_ctx, 3)
+    assert "Dark Mode" in prompt
+    assert "Python" in prompt
+    assert "3" in prompt
+
+
+def test_build_pre_prd_discovery_prompt_truncates_tree():
+    repo_ctx = RepositoryContext(
+        root="/repo",
+        tree=[f"src/file_{i}.py" for i in range(50)],
+        manifests={},
+        detected_stack=["Python"],
+        detected_patterns=[],
+    )
+    prompt = _build_pre_prd_discovery_prompt("Feature", repo_ctx, 3)
+    # Only the first 30 files should appear
+    assert "src/file_29.py" in prompt
+    assert "src/file_30.py" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# _make_answers_model
+# ---------------------------------------------------------------------------
+
+
+def test_make_answers_model_creates_fields():
+    questions = ["How does it integrate?", "Any risks?", "Performance concerns?"]
+    Model = _make_answers_model(questions)
+    instance = Model(answer_1="A1", answer_2="A2", answer_3="A3")
+    assert instance.answer_1 == "A1"
+    assert instance.answer_3 == "A3"
+
+
+def test_make_answers_model_defaults_to_empty_string():
+    questions = ["Q1?", "Q2?"]
+    Model = _make_answers_model(questions)
+    instance = Model()
+    assert instance.answer_1 == ""
+    assert instance.answer_2 == ""
+
+
+def test_make_answers_model_field_descriptions_match_questions():
+    questions = ["What are the integration points?", "Any risks?"]
+    Model = _make_answers_model(questions)
+    schema = Model.model_json_schema()
+    props = schema["properties"]
+    assert props["answer_1"]["description"] == "What are the integration points?"
+    assert props["answer_2"]["description"] == "Any risks?"
+
+
+# ---------------------------------------------------------------------------
+# collect_pre_prd_elicitation
+# ---------------------------------------------------------------------------
+
+
+def _make_elicit_result(action: str, data=None):
+    m = MagicMock()
+    m.action = action
+    m.data = data
+    return m
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_returns_formatted_context(fake_dirs, mock_ctx):
+    answers_mock = MagicMock()
+    answers_mock.answer_1 = "Auth module"
+    answers_mock.answer_2 = "Repository pattern"
+    answers_mock.answer_3 = "No major risks"
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("accept", answers_mock))
+
+    result = await collect_pre_prd_elicitation(mock_ctx, "Dark Mode")
+    assert "Pre-PRD Technical Discovery" in result
+    assert "Dark Mode" in result
+    assert "Auth module" in result
+    assert "Repository pattern" in result
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_returns_empty_on_decline(fake_dirs, mock_ctx):
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("decline"))
+
+    result = await collect_pre_prd_elicitation(mock_ctx, "Dark Mode")
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_returns_empty_on_cancel(fake_dirs, mock_ctx):
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("cancel"))
+
+    result = await collect_pre_prd_elicitation(mock_ctx, "Dark Mode")
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_returns_empty_when_all_answers_blank(fake_dirs, mock_ctx):
+    answers_mock = MagicMock()
+    answers_mock.answer_1 = ""
+    answers_mock.answer_2 = "   "
+    answers_mock.answer_3 = ""
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("accept", answers_mock))
+
+    result = await collect_pre_prd_elicitation(mock_ctx, "Feature Z")
+    assert result == ""
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_fallback_questions_on_sample_failure(fake_dirs):
+    from unittest.mock import AsyncMock as AM
+
+    ctx = MagicMock()
+    ctx.sample = AM(side_effect=Exception("sampling failed"))
+    answers_mock = MagicMock()
+    answers_mock.answer_1 = "An answer"
+    answers_mock.answer_2 = "Another answer"
+    answers_mock.answer_3 = "Third answer"
+    ctx.elicit = AM(return_value=_make_elicit_result("accept", answers_mock))
+
+    result = await collect_pre_prd_elicitation(ctx, "Feature Z")
+    assert "Pre-PRD Technical Discovery" in result
+    assert "An answer" in result
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_clamps_num_questions(fake_dirs, mock_ctx):
+    answers_mock = MagicMock()
+    for i in range(1, 6):
+        setattr(answers_mock, f"answer_{i}", f"Answer {i}")
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("accept", answers_mock))
+
+    # num_questions=10 should be clamped to 5
+    result = await collect_pre_prd_elicitation(mock_ctx, "Feature", num_questions=10)
+    assert "Pre-PRD Technical Discovery" in result
+
+
+@pytest.mark.asyncio
+async def test_collect_pre_prd_includes_repo_stack(fake_dirs, mock_ctx):
+    answers_mock = MagicMock()
+    answers_mock.answer_1 = "Something relevant"
+    answers_mock.answer_2 = "Another thing"
+    answers_mock.answer_3 = "Third thing"
+    mock_ctx.elicit = AsyncMock(return_value=_make_elicit_result("accept", answers_mock))
+
+    result = await collect_pre_prd_elicitation(mock_ctx, "Feature")
+    assert "Repository Stack" in result
+    assert "Python" in result or "Unknown" in result

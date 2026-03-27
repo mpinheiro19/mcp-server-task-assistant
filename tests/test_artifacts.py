@@ -4,7 +4,7 @@ import pytest
 
 import mcp_assistant.config as config_module
 import mcp_assistant.tools.artifacts as artifacts_module
-from mcp_assistant.tools.artifacts import IdeaDetails, _render_prd_draft
+from mcp_assistant.tools.artifacts import ElicitationChoice, IdeaDetails, _render_prd_draft
 from mcp_assistant.utils import _parse_index_table
 
 
@@ -222,8 +222,9 @@ def mock_ctx():
 async def test_ideate_prd_full_flow_returns_draft(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("My New Feature"),  # title (id=0)
-        _accepted(  # details (id=1)
+        _accepted("My New Feature"),                            # title
+        _accepted(ElicitationChoice(run_elicitation=False)),   # choice: skip elicitation
+        _accepted(                                              # details
             IdeaDetails(
                 problem_statement="A problem",
                 target_audience="Devs",
@@ -239,10 +240,10 @@ async def test_ideate_prd_full_flow_returns_draft(mcp_and_tools, mock_ctx):
     assert result["saved"] is True, "Draft should be auto-saved when no duplicate exists"
     assert result["feature_name"] == "My New Feature"
     assert result["sampling_used"] is True
+    assert result["elicitation_used"] is False
     assert "draft" in result
     assert "filename" in result
     assert "path" in result
-    # File must exist on disk
     assert dirs["prds"].exists() and list(dirs["prds"].glob("*.md"))
 
 
@@ -260,8 +261,9 @@ async def test_ideate_prd_cancel_at_title(mcp_and_tools, mock_ctx):
 async def test_ideate_prd_decline_at_details(mcp_and_tools, mock_ctx):
     mcp, dirs = mcp_and_tools
     mock_ctx.elicit.side_effect = [
-        _accepted("Feature X"),  # title (id=0)
-        _declined(),  # details (id=1)
+        _accepted("Feature X"),                                 # title
+        _accepted(ElicitationChoice(run_elicitation=False)),   # choice: skip
+        _declined(),                                            # details
     ]
     result = await mcp.tools["ideate_prd"](mock_ctx)
     assert result["saved"] is False
@@ -285,3 +287,71 @@ async def test_ideate_prd_duplicate_found_returns_error(mcp_and_tools, mock_ctx)
     assert result["saved"] is False
     assert "already exists" in result["reason"]
     assert mock_ctx.elicit.call_count == 1, "No additional elicitation after duplicate detected"
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_with_elicitation_enriches_prd(mcp_and_tools, mock_ctx):
+    """When the user opts into pre-PRD elicitation, the PRD is generated with enriched context."""
+    mcp, dirs = mcp_and_tools
+
+    answers_mock = MagicMock()
+    answers_mock.answer_1 = "The auth module"
+    answers_mock.answer_2 = "Repository pattern"
+    answers_mock.answer_3 = "No major risks"
+
+    mock_ctx.elicit.side_effect = [
+        _accepted("Elicited Feature"),                          # title
+        _accepted(ElicitationChoice(run_elicitation=True)),    # choice: run elicitation
+        _accepted(answers_mock),                                # discovery answers
+        _accepted(                                              # details
+            IdeaDetails(
+                problem_statement="A problem",
+                target_audience="Devs",
+                success_metrics="metric",
+                scope_in="everything",
+            )
+        ),
+    ]
+
+    questions_result = MagicMock()
+    questions_result.text = "1. How does this integrate?\n2. Any patterns to follow?\n3. Main risks?"
+    prd_result = MagicMock()
+    prd_result.text = "# PRD: Elicited Feature\n\n## Problem Statement\nA problem"
+    mock_ctx.sample.side_effect = [questions_result, prd_result]
+
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is True
+    assert result["elicitation_used"] is True
+    assert result["feature_name"] == "Elicited Feature"
+    assert dirs["prds"].exists() and list(dirs["prds"].glob("*.md"))
+
+
+@pytest.mark.asyncio
+async def test_ideate_prd_elicitation_declined_proceeds_without_enrichment(mcp_and_tools, mock_ctx):
+    """When the user declines the discovery form, the PRD is still generated without enrichment."""
+    mcp, dirs = mcp_and_tools
+
+    mock_ctx.elicit.side_effect = [
+        _accepted("Feature Y"),                                 # title
+        _accepted(ElicitationChoice(run_elicitation=True)),    # choice: run elicitation
+        _declined(),                                            # discovery answers: declined
+        _accepted(                                              # details
+            IdeaDetails(
+                problem_statement="Some problem",
+                target_audience="Users",
+                success_metrics="Some metric",
+                scope_in="In scope stuff",
+            )
+        ),
+    ]
+
+    questions_result = MagicMock()
+    questions_result.text = "1. Integration?\n2. Patterns?\n3. Risks?"
+    prd_result = MagicMock()
+    prd_result.text = "# PRD: Feature Y"
+    mock_ctx.sample.side_effect = [questions_result, prd_result]
+
+    result = await mcp.tools["ideate_prd"](mock_ctx)
+    assert result["saved"] is True
+    assert result["elicitation_used"] is False
+    assert result["feature_name"] == "Feature Y"
